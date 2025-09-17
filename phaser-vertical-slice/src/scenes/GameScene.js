@@ -431,11 +431,7 @@ export default class GameScene extends Phaser.Scene {
     const payload = {
       hud,
       performance,
-      menu: {
-        open: this.menuOpen,
-        inventoryOpen: this.menuState.inventoryOpen,
-        optionsOpen: this.menuState.optionsOpen
-      },
+
       map: this.collectMapState()
     };
 
