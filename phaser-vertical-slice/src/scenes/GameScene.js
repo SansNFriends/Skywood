@@ -350,6 +350,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
 
+
   applyOptionsPatch(patch) {
     if (!patch) {
       return;
@@ -469,6 +470,7 @@ export default class GameScene extends Phaser.Scene {
   collectInventoryState() {
     return this.inventory.map((item) => ({ ...item }));
   }
+
 
 
   collectMapState() {

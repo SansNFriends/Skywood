@@ -228,7 +228,7 @@ export default class UIScene extends Phaser.Scene {
       })
       .setOrigin(0, 0);
     const hint = this.add
-      .text(-220, 140, "↑↓ 선택 • 1~4 퀵슬롯 지정 • ESC 닫기", this.getHintStyle())
+
       .setOrigin(0, 0);
 
     overlay.on("pointerdown", () => {
@@ -285,7 +285,6 @@ export default class UIScene extends Phaser.Scene {
       left: Phaser.Input.Keyboard.KeyCodes.LEFT,
       right: Phaser.Input.Keyboard.KeyCodes.RIGHT,
       esc: Phaser.Input.Keyboard.KeyCodes.ESC,
-
       one: Phaser.Input.Keyboard.KeyCodes.ONE,
       two: Phaser.Input.Keyboard.KeyCodes.TWO,
       three: Phaser.Input.Keyboard.KeyCodes.THREE,
@@ -369,6 +368,7 @@ export default class UIScene extends Phaser.Scene {
   }
 
 
+
   updateHud(hudState) {
     const hpRatio = hudState.maxHp > 0 ? Phaser.Math.Clamp(hudState.hp / hudState.maxHp, 0, 1) : 0;
     const mpRatio = hudState.maxMp > 0 ? Phaser.Math.Clamp(hudState.mp / hudState.maxMp, 0, 1) : 0;
@@ -405,7 +405,7 @@ export default class UIScene extends Phaser.Scene {
       }
       visual.frame.setFillStyle(0x1f273a, 0.9);
       const name = slot.name || "--";
-      visual.label.setText(name.length > 9 ? `${name.slice(0, 8)}…` : name);
+
       visual.quantity.setText(slot.quantity > 1 ? `x${slot.quantity}` : "");
     });
   }
@@ -484,6 +484,7 @@ export default class UIScene extends Phaser.Scene {
 
   handleOptionsInput() {
 
+
     if (Phaser.Input.Keyboard.JustDown(this.navKeys.up)) {
       this.optionsSelectionIndex = Phaser.Math.Wrap(this.optionsSelectionIndex - 1, 0, this.optionsConfig.length);
       this.refreshOptionsList();
@@ -493,8 +494,6 @@ export default class UIScene extends Phaser.Scene {
     }
 
 
-    
-  
 
   assignQuickSlot(slotIndex) {
     if (!this.inventoryData.length) {
@@ -531,10 +530,6 @@ export default class UIScene extends Phaser.Scene {
   }
 
 
-  refreshInventoryList() {
-    if (!this.inventoryData.length) {
-      this.inventoryListText.setText(["(아이템 없음)"]);
-      this.inventoryDetailText.setText("전리품을 획득해 인벤토리를 채우세요.");
       return;
     }
 
@@ -548,19 +543,18 @@ export default class UIScene extends Phaser.Scene {
     });
 
     const lines = this.inventoryData.map((item, index) => {
-      const selector = index === this.inventorySelectionIndex ? "▶" : " ";
+
       const slotTag = quickSlotMap.has(item.id) ? ` [${quickSlotMap.get(item.id)}]` : "";
       return `${selector} ${item.name}${slotTag}  x${item.quantity}`;
     });
 
     this.inventoryListText.setText(lines);
     const selected = this.inventoryData[this.inventorySelectionIndex];
-    this.inventoryDetailText.setText(selected?.description ?? "상세 설명이 없습니다.");
+
   }
 
   refreshOptionsList() {
     const lines = this.optionsConfig.map((config, index) => {
-      const selector = index === this.optionsSelectionIndex ? "▶" : " ";
 
       const value = this.formatOptionValue(config);
       return `${selector} ${config.label}: ${value}`;
