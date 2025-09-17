@@ -1,0 +1,7 @@
+﻿{
+  "spritemap": {
+    "jump": { "start": 0, "end": 0.18, "loop": false },
+    "attack": { "start": 0.18, "end": 0.35, "loop": false },
+    "hit": { "start": 0, "end": 0.35, "loop": false }
+  }
+}
