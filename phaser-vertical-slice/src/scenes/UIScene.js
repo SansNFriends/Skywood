@@ -39,8 +39,6 @@ export default class UIScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor(0x000000);
-
     this.gameScene = this.scene.get(this.gameSceneKey);
     if (!this.gameScene) {
       this.gameScene = this.scene.get("GameScene");
