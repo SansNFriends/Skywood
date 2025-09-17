@@ -493,8 +493,8 @@ export default class UIScene extends Phaser.Scene {
     }
 
 
-    }
-  }
+    
+  
 
   assignQuickSlot(slotIndex) {
     if (!this.inventoryData.length) {
