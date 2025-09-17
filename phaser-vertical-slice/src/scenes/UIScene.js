@@ -334,6 +334,7 @@ export default class UIScene extends Phaser.Scene {
     }
     if (payload.menu) {
       this.handleMenuState(payload.menu);
+
     }
   }
 
