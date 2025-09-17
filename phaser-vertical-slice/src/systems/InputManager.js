@@ -115,6 +115,10 @@ export default class InputManager {
     return this.justReleased.has(action);
   }
 
+  resetAll() {
+    this.resetKeys();
+  }
+
   destroy() {
     this.scene.events.off(Phaser.Scenes.Events.UPDATE, this.handleUpdate, this);
     this.scene.game.events.off(Phaser.Core.Events.BLUR, this.handleBlur, this);
