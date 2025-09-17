@@ -1,6 +1,6 @@
-﻿import Phaser from "../phaser.js";
+import Phaser from "../phaser.js";
 import PerfMeter from "../systems/PerfMeter.js";
-import AssetLoader, { ASSET_KEYS } from "../systems/AssetLoader.js";
+import { ASSET_KEYS } from "../systems/AssetLoader.js";
 import InputManager, { INPUT_KEYS } from "../systems/InputManager.js";
 import Player from "../entities/Player.js";
 import Pool from "../systems/Pool.js";
@@ -10,6 +10,7 @@ import Spawner from "../systems/Spawner.js";
 
 const CAMERA_DEADZONE_X = 0.4;
 const CAMERA_DEADZONE_Y = 0.3;
+const UI_SYNC_INTERVAL = 120;
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -21,11 +22,21 @@ export default class GameScene extends Phaser.Scene {
     this.parallaxConfig = [];
     this.inputManager = null;
     this.player = null;
-    this.debugHud = null;
     this.audio = null;
     this.projectilePool = null;
     this.projectiles = new Set();
     this.mobSpawner = null;
+
+    this.inventory = [];
+    this.quickSlots = [];
+    this.optionsState = {};
+    this.inventoryDirty = false;
+    this.quickSlotsDirty = false;
+    this.optionsDirty = false;
+    this.uiSyncTimer = 0;
+    this.menuState = { inventoryOpen: false, optionsOpen: false };
+    this.menuOpen = false;
+    this.lastFrameTime = 0;
   }
 
   create() {
@@ -64,9 +75,13 @@ export default class GameScene extends Phaser.Scene {
     });
 
     this.setupCamera();
-    this.createHud();
+
+    this.initializeGameData();
+    this.initializeUIBridge();
 
     this.perfMeter = new PerfMeter(this);
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
   }
 
   createParallax() {
@@ -164,28 +179,315 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  createHud() {
-    const hudText = this.add.text(20, 20, "", {
-      fontFamily: "Rubik, 'Segoe UI', sans-serif",
-      fontSize: "18px",
-      color: "#ffffff"
-    });
-    hudText.setScrollFactor(0);
-    hudText.setDepth(1001);
-    this.debugHud = hudText;
+  initializeGameData() {
+    this.inventory = [
+      {
+        id: "skyroot_tonic",
+        name: "Skyroot Tonic",
+        type: "consumable",
+        quantity: 3,
+        description: "Restores 40 HP over a short duration."
+      },
+      {
+        id: "azure_focus",
+        name: "Azure Focus",
+        type: "consumable",
+        quantity: 2,
+        description: "Instantly revitalises 30 MP."
+      },
+      {
+        id: "ember_shard",
+        name: "Ember Shard",
+        type: "material",
+        quantity: 5,
+        description: "Warm crystalline shard used for crafting combustion cores."
+      },
+      {
+        id: "wingburst_scroll",
+        name: "Wingburst Scroll",
+        type: "skill",
+        quantity: 1,
+        description: "Unlocks a temporary mid-air burst dash when consumed."
+      }
+    ];
+
+    this.quickSlots = [
+      { index: 0, itemId: "skyroot_tonic" },
+      { index: 1, itemId: "azure_focus" },
+      { index: 2, itemId: null },
+      { index: 3, itemId: "wingburst_scroll" }
+    ];
+
+    this.optionsState = {
+      masterVolume: 0.8,
+      sfxVolume: 0.9,
+      bgmVolume: 0.7,
+      resolutionScale: 1,
+      graphicsQuality: "High"
+    };
+
+    this.inventoryDirty = true;
+    this.quickSlotsDirty = true;
+    this.optionsDirty = true;
+
+    this.audio.applyMixSettings(this.optionsState);
+    this.updateResolutionScale();
+    this.applyGraphicsQuality(this.optionsState.graphicsQuality);
+  }
+
+  initializeUIBridge() {
+    this.events.on("ui-options-change", this.applyOptionsPatch, this);
+    this.events.on("ui-assign-quick-slot", this.handleQuickSlotAssignment, this);
+    this.events.on("ui-close-panel", this.handleUIClosePanel, this);
+    this.events.once("ui-ready", this.handleUIReady, this);
+
+    if (this.scene.isActive && this.scene.isActive("UIScene")) {
+      this.scene.stop("UIScene");
+    }
+    this.scene.launch("UIScene", { gameSceneKey: this.scene.key });
+    this.scene.bringToTop("UIScene");
+  }
+
+  handleUIReady() {
+    this.syncUI(true);
   }
 
   update(time, delta) {
+    this.lastFrameTime = delta;
     this.updateParallax();
-    this.updateHud();
-    this.handleCombatInput();
+    this.handleUtilityInput();
+
+    if (!this.menuOpen) {
+      this.handleCombatInput();
+    }
+
     this.mobSpawner?.update(time, delta);
     this.updateProjectiles();
     this.handleMobInteractions();
+    this.updateUIHeartbeat(delta);
+  }
+
+  handleUtilityInput() {
+    if (!this.inputManager) {
+      return;
+    }
+
+    if (this.inputManager.wasJustPressed(INPUT_KEYS.INVENTORY)) {
+      const open = !this.menuState.inventoryOpen;
+      this.menuState.inventoryOpen = open;
+      if (open && this.menuState.optionsOpen) {
+        this.menuState.optionsOpen = false;
+        this.events.emit("ui-panel", { panel: "options", open: false });
+      }
+      this.events.emit("ui-panel", { panel: "inventory", open });
+      this.handleMenuStateChanged();
+      this.syncUI(true);
+    }
+
+    if (this.inputManager.wasJustPressed(INPUT_KEYS.OPTIONS)) {
+      const open = !this.menuState.optionsOpen;
+      this.menuState.optionsOpen = open;
+      if (open && this.menuState.inventoryOpen) {
+        this.menuState.inventoryOpen = false;
+        this.events.emit("ui-panel", { panel: "inventory", open: false });
+      }
+      this.events.emit("ui-panel", { panel: "options", open });
+      this.handleMenuStateChanged();
+      this.syncUI(true);
+    }
+  }
+
+  handleMenuStateChanged() {
+    const isOpen = this.menuState.inventoryOpen || this.menuState.optionsOpen;
+    if (isOpen === this.menuOpen) {
+      return;
+    }
+
+    this.menuOpen = isOpen;
+    if (this.player) {
+      this.player.setInputEnabled(!this.menuOpen);
+    }
+    if (this.menuOpen) {
+      this.inputManager?.resetAll?.();
+    }
+    this.events.emit("ui-menu-state", { open: this.menuOpen });
+  }
+
+  handleUIClosePanel({ panel }) {
+    if (panel === "inventory" && this.menuState.inventoryOpen) {
+      this.menuState.inventoryOpen = false;
+      this.events.emit("ui-panel", { panel: "inventory", open: false });
+      this.handleMenuStateChanged();
+      this.syncUI(true);
+    } else if (panel === "options" && this.menuState.optionsOpen) {
+      this.menuState.optionsOpen = false;
+      this.events.emit("ui-panel", { panel: "options", open: false });
+      this.handleMenuStateChanged();
+      this.syncUI(true);
+    }
+  }
+
+  handleQuickSlotAssignment({ slotIndex, itemId }) {
+    if (typeof slotIndex !== "number" || slotIndex < 0 || slotIndex >= this.quickSlots.length) {
+      return;
+    }
+    if (!itemId) {
+      this.quickSlots[slotIndex] = { index: slotIndex, itemId: null };
+      this.quickSlotsDirty = true;
+      this.syncUI(true);
+      return;
+    }
+    const item = this.inventory.find((entry) => entry.id === itemId);
+    if (!item) {
+      return;
+    }
+    this.quickSlots[slotIndex] = { index: slotIndex, itemId };
+    this.quickSlotsDirty = true;
+    this.syncUI(true);
+  }
+
+  applyOptionsPatch(patch) {
+    if (!patch) {
+      return;
+    }
+
+    this.optionsState = { ...this.optionsState, ...patch };
+    this.optionsDirty = true;
+    this.audio?.applyMixSettings(this.optionsState);
+
+    if (patch.resolutionScale !== undefined) {
+      this.updateResolutionScale();
+    }
+    if (patch.graphicsQuality !== undefined) {
+      this.applyGraphicsQuality(this.optionsState.graphicsQuality);
+    }
+
+    this.syncUI(true);
+  }
+
+  updateResolutionScale() {
+    const zoom = Phaser.Math.Clamp(this.optionsState.resolutionScale ?? 1, 0.7, 1.2);
+    this.cameras.main.setZoom(zoom);
+  }
+
+  applyGraphicsQuality(quality) {
+    const engine = this.matter?.world?.engine;
+    if (!engine) {
+      return;
+    }
+    if (quality === "Performance") {
+      engine.positionIterations = 4;
+      engine.velocityIterations = 3;
+    } else {
+      engine.positionIterations = 6;
+      engine.velocityIterations = 4;
+    }
+  }
+
+  updateUIHeartbeat(delta) {
+    this.uiSyncTimer += delta;
+    if (this.uiSyncTimer < UI_SYNC_INTERVAL) {
+      return;
+    }
+    this.uiSyncTimer = 0;
+    this.syncUI();
+  }
+
+  syncUI(force = false) {
+    const payload = this.buildUIState(force);
+    this.events.emit("ui-state", payload);
+    if (force || this.inventoryDirty) {
+      this.inventoryDirty = false;
+    }
+    if (force || this.quickSlotsDirty) {
+      this.quickSlotsDirty = false;
+    }
+    if (force || this.optionsDirty) {
+      this.optionsDirty = false;
+    }
+  }
+
+  buildUIState(force = false) {
+    const hud = this.player
+      ? {
+          hp: Math.round(this.player.stats.hp),
+          maxHp: this.player.stats.maxHP,
+          mp: Math.round(this.player.stats.mp),
+          maxMp: this.player.stats.maxMP,
+          dashCooldown: Math.max(0, Math.round(this.player.dashCooldownTimer || 0)),
+          dashReady: (this.player.dashCooldownTimer || 0) <= 0,
+          menuOpen: this.menuOpen
+        }
+      : null;
+
+    const performance = {
+      fps: this.game.loop.actualFps || 0,
+      frameTime: this.lastFrameTime,
+      objects: this.children.list.length,
+      mobs: this.mobSpawner ? this.mobSpawner.getActiveMobs().length : 0,
+      projectiles: this.projectiles.size
+    };
+
+    const payload = {
+      hud,
+      performance,
+      menu: { open: this.menuOpen },
+      map: this.collectMapState()
+    };
+
+    if (force || this.quickSlotsDirty) {
+      payload.quickSlots = this.collectQuickSlotState();
+    }
+    if (force || this.inventoryDirty) {
+      payload.inventory = this.collectInventoryState();
+    }
+    if (force || this.optionsDirty) {
+      payload.options = { ...this.optionsState };
+    }
+
+    return payload;
+  }
+
+  collectQuickSlotState() {
+    return this.quickSlots.map((slot) => {
+      const item = slot.itemId ? this.inventory.find((entry) => entry.id === slot.itemId) : null;
+      return {
+        index: slot.index,
+        itemId: slot.itemId,
+        name: item?.name ?? null,
+        quantity: item?.quantity ?? 0
+      };
+    });
+  }
+
+  collectInventoryState() {
+    return this.inventory.map((item) => ({ ...item }));
+  }
+
+  collectMapState() {
+    if (!this.map) {
+      return null;
+    }
+    const mobs = [];
+    if (this.mobSpawner) {
+      this.mobSpawner.getActiveMobs().forEach((mob) => {
+        if (mob.active) {
+          mobs.push({ x: mob.x, y: mob.y });
+        }
+      });
+    }
+    const view = this.cameras.main.worldView;
+    return {
+      width: this.map.widthInPixels,
+      height: this.map.heightInPixels,
+      player: this.player ? { x: this.player.x, y: this.player.y } : null,
+      camera: { x: view.x, y: view.y, width: view.width, height: view.height },
+      mobs
+    };
   }
 
   handleCombatInput() {
-    if (!this.inputManager || !this.player) {
+    if (!this.inputManager || !this.player || this.menuOpen) {
       return;
     }
 
@@ -301,55 +603,27 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  updateHud() {
-    if (!this.debugHud || !this.player || !this.player.body) {
-      return;
-    }
-    const velocity = this.player.body.velocity;
-    const speedX = Math.round(velocity.x * 60);
-    const speedY = Math.round(velocity.y * 60);
-    const posX = Math.round(this.player.x);
-    const posY = Math.round(this.player.y);
-    const mobs = this.mobSpawner ? this.mobSpawner.getActiveMobs().length : 0;
-    const hp = this.player.stats.hp;       // 현재 체력
-    const maxHp = this.player.stats.maxHP; // 최대 체력
+  spawnDamageNumber(x, y, value, color) {
+    const tint = color ?? "#ff5e5e";
+    const text = this.add.text(x, y, String(value), {
+      fontFamily: "Rubik, 'Segoe UI', sans-serif",
+      fontSize: "18px",
+      color: tint
+    });
+    text.setDepth(80);
+    text.setOrigin(0.5, 1);
 
-    this.debugHud.setText([
-     "Player",
-     `HP ${hp} / ${maxHp}`,
-      `X ${Math.round(this.player.body.velocity.x * 60)} px/s`,
-     `Y ${Math.round(this.player.body.velocity.y * 60)} px/s`,
-     `Pos ${Math.round(this.player.x)}, ${Math.round(this.player.y)}`,
-     `Ground ${this.player.isOnGround}`,
-     `Dash ${this.player.isDashing}`,
-     `Mobs ${this.mobSpawner ? this.mobSpawner.activeMobs.size : 0}`
-    ]);
-  }
-  spawnDamageNumber(x, y, value, color) 
-  {
-  if (color === undefined || color === null) color = "#ff5e5e";
-
-  const text = this.add.text(x, y, String(value), {
-    fontFamily: "Rubik, 'Segoe UI', sans-serif",
-    fontSize: "18px",
-    color
-  });
-  text.setDepth(80);
-  text.setOrigin(0.5, 1);
-
-  this.tweens.add({
-    targets: text,
-    y: y - 32,
-    alpha: 0,
-    duration: 400,
-    ease: "Cubic.Out",
-    onComplete: () => text.destroy()
-  });
+    this.tweens.add({
+      targets: text,
+      y: y - 32,
+      alpha: 0,
+      duration: 400,
+      ease: "Cubic.Out",
+      onComplete: () => text.destroy()
+    });
   }
 
-
-  spawnLoot(x, y) 
-  {
+  spawnLoot(x, y) {
     const loot = this.add.rectangle(x, y, 12, 12, 0xffd166);
     loot.setDepth(70);
     this.tweens.add({
@@ -369,5 +643,13 @@ export default class GameScene extends Phaser.Scene {
     this.layers = {};
     this.parallaxLayers = [];
     this.inputManager = null;
+    this.projectiles.clear();
+    if (this.scene.isActive && this.scene.isActive("UIScene")) {
+      this.scene.stop("UIScene");
+    }
+    this.events.off("ui-options-change", this.applyOptionsPatch, this);
+    this.events.off("ui-assign-quick-slot", this.handleQuickSlotAssignment, this);
+    this.events.off("ui-close-panel", this.handleUIClosePanel, this);
+    this.events.off("ui-ready", this.handleUIReady, this);
   }
 }

@@ -49,6 +49,7 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     this.stats = new CombatStats({ maxHP: 150, maxMP: 60 });
     this.hitstunTimer = 0;
     this.knockback = { x: 0, y: 0 };
+    this.inputDisabled = false;
 
     this.initBody(x, y);
     this.registerCollisions();
@@ -180,7 +181,7 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
   }
 
   handleInput() {
-    if (!this.input) {
+    if (!this.input || this.inputDisabled) {
       return;
     }
 
@@ -227,6 +228,11 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
       return;
     }
 
+    if (this.inputDisabled) {
+      this.setVelocityX(0);
+      return;
+    }
+
     this.handleInput();
 
     let move = 0;
@@ -264,7 +270,7 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
   }
 
   tryDash() {
-    if (this.isDashing || this.dashCooldownTimer > 0 || this.hitstunTimer > 0) {
+    if (this.inputDisabled || this.isDashing || this.dashCooldownTimer > 0 || this.hitstunTimer > 0) {
       return;
     }
 
@@ -368,5 +374,13 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     }
 
     super.setFrame(frameKey, false, false);
+  }
+
+  setInputEnabled(enabled) {
+    this.inputDisabled = !enabled;
+    if (!enabled) {
+      this.jumpBufferMs = 0;
+      this.setVelocityX(0);
+    }
   }
 }
