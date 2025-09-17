@@ -492,7 +492,7 @@ export default class UIScene extends Phaser.Scene {
       this.optionsSelectionIndex = Phaser.Math.Wrap(this.optionsSelectionIndex + 1, 0, this.optionsConfig.length);
       this.refreshOptionsList();
     }
-
+  }
 
 
   assignQuickSlot(slotIndex) {
