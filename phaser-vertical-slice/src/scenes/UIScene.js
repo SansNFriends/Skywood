@@ -334,40 +334,7 @@ export default class UIScene extends Phaser.Scene {
     }
     if (payload.menu) {
       this.handleMenuState(payload.menu);
-      this.syncPanelsFromMenu(payload.menu);
-    }
-  }
 
-  syncPanelsFromMenu(menuState) {
-    if (!menuState) {
-      return;
-    }
-
-    if (menuState.inventoryOpen !== undefined && this.inventoryContainer) {
-      const shouldOpen = Boolean(menuState.inventoryOpen);
-      if (this.inventoryVisible !== shouldOpen) {
-        this.inventoryVisible = shouldOpen;
-        this.inventoryContainer.setVisible(shouldOpen);
-        if (shouldOpen) {
-          this.inventorySelectionIndex = Phaser.Math.Clamp(
-            this.inventorySelectionIndex,
-            0,
-            Math.max(0, this.inventoryData.length - 1)
-          );
-          this.refreshInventoryList();
-        }
-      }
-    }
-
-    if (menuState.optionsOpen !== undefined && this.optionsContainer) {
-      const shouldOpen = Boolean(menuState.optionsOpen);
-      if (this.optionsVisible !== shouldOpen) {
-        this.optionsVisible = shouldOpen;
-        this.optionsContainer.setVisible(shouldOpen);
-        if (shouldOpen) {
-          this.refreshOptionsList();
-        }
-      }
     }
   }
 
