@@ -30,7 +30,7 @@ export default class GameScene extends Phaser.Scene {
     this.inventory = [];
     this.quickSlots = [];
     this.optionsState = {};
-    this.bindingsDirty = false;
+
     this.inventoryDirty = false;
     this.quickSlotsDirty = false;
     this.optionsDirty = false;
@@ -230,7 +230,7 @@ export default class GameScene extends Phaser.Scene {
     this.inventoryDirty = true;
     this.quickSlotsDirty = true;
     this.optionsDirty = true;
-    this.bindingsDirty = true;
+
 
     this.audio.applyMixSettings(this.optionsState);
     this.updateResolutionScale();
@@ -241,8 +241,7 @@ export default class GameScene extends Phaser.Scene {
     this.events.on("ui-options-change", this.applyOptionsPatch, this);
     this.events.on("ui-assign-quick-slot", this.handleQuickSlotAssignment, this);
     this.events.on("ui-close-panel", this.handleUIClosePanel, this);
-    this.events.on("ui-rebind-action", this.handleRebindAction, this);
-    this.events.on("ui-reset-bindings", this.handleResetBindings, this);
+
     this.events.once("ui-ready", this.handleUIReady, this);
 
     if (this.scene.isActive && this.scene.isActive("UIScene")) {
@@ -350,24 +349,6 @@ export default class GameScene extends Phaser.Scene {
     this.syncUI(true);
   }
 
-  handleRebindAction({ action, keyCode }) {
-    if (!action || typeof keyCode !== "number" || !Number.isFinite(keyCode)) {
-      return;
-    }
-    if (this.inputManager?.rebindAction(action, keyCode)) {
-      this.bindingsDirty = true;
-      this.syncUI(true);
-    }
-  }
-
-  handleResetBindings() {
-    if (!this.inputManager) {
-      return;
-    }
-    this.inputManager.resetAllBindings();
-    this.bindingsDirty = true;
-    this.syncUI(true);
-  }
 
   applyOptionsPatch(patch) {
     if (!patch) {
@@ -428,9 +409,7 @@ export default class GameScene extends Phaser.Scene {
     if (force || this.optionsDirty) {
       this.optionsDirty = false;
     }
-    if (force || this.bindingsDirty) {
-      this.bindingsDirty = false;
-    }
+
   }
 
   buildUIState(force = false) {
@@ -457,11 +436,7 @@ export default class GameScene extends Phaser.Scene {
     const payload = {
       hud,
       performance,
-      menu: {
-        open: this.menuOpen,
-        inventoryOpen: this.menuState.inventoryOpen,
-        optionsOpen: this.menuState.optionsOpen
-      },
+
       map: this.collectMapState()
     };
 
@@ -474,9 +449,7 @@ export default class GameScene extends Phaser.Scene {
     if (force || this.optionsDirty) {
       payload.options = { ...this.optionsState };
     }
-    if (force || this.bindingsDirty) {
-      payload.bindings = this.collectBindingState();
-    }
+
 
     return payload;
   }
@@ -497,12 +470,6 @@ export default class GameScene extends Phaser.Scene {
     return this.inventory.map((item) => ({ ...item }));
   }
 
-  collectBindingState() {
-    if (!this.inputManager?.getBindingSnapshot) {
-      return [];
-    }
-    return this.inputManager.getBindingSnapshot();
-  }
 
   collectMapState() {
     if (!this.map) {
@@ -690,8 +657,7 @@ export default class GameScene extends Phaser.Scene {
     this.events.off("ui-options-change", this.applyOptionsPatch, this);
     this.events.off("ui-assign-quick-slot", this.handleQuickSlotAssignment, this);
     this.events.off("ui-close-panel", this.handleUIClosePanel, this);
-    this.events.off("ui-rebind-action", this.handleRebindAction, this);
-    this.events.off("ui-reset-bindings", this.handleResetBindings, this);
+
     this.events.off("ui-ready", this.handleUIReady, this);
   }
 }
