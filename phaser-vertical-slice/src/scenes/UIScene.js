@@ -1,5 +1,6 @@
 import Phaser from "../phaser.js";
 
+
 const HUD_DEPTH = 2000;
 const QUICK_SLOT_COUNT = 4;
 const MINI_MAP_SIZE = { width: 176, height: 112 };
@@ -32,6 +33,7 @@ export default class UIScene extends Phaser.Scene {
     this.optionsVisible = false;
     this.optionsSelectionIndex = 0;
     this.navKeys = null;
+
   }
 
   init(data) {
@@ -262,9 +264,7 @@ export default class UIScene extends Phaser.Scene {
         lineSpacing: 6
       })
       .setOrigin(0, 0);
-    const hint = this.add
-      .text(-200, 120, "↑↓ 항목 이동 • ←→ 값 조정 • ESC 닫기", this.getHintStyle())
-      .setOrigin(0, 0);
+
 
     overlay.on("pointerdown", () => {
       this.gameScene?.events.emit("ui-close-panel", { panel: "options" });
@@ -275,6 +275,7 @@ export default class UIScene extends Phaser.Scene {
     this.optionsContainer = container;
     this.optionsListText = list;
     this.optionsHintText = hint;
+
   }
 
   installInputHandlers() {
@@ -284,11 +285,13 @@ export default class UIScene extends Phaser.Scene {
       left: Phaser.Input.Keyboard.KeyCodes.LEFT,
       right: Phaser.Input.Keyboard.KeyCodes.RIGHT,
       esc: Phaser.Input.Keyboard.KeyCodes.ESC,
+
       one: Phaser.Input.Keyboard.KeyCodes.ONE,
       two: Phaser.Input.Keyboard.KeyCodes.TWO,
       three: Phaser.Input.Keyboard.KeyCodes.THREE,
       four: Phaser.Input.Keyboard.KeyCodes.FOUR
     });
+
   }
 
   update() {
@@ -327,6 +330,7 @@ export default class UIScene extends Phaser.Scene {
         this.refreshOptionsList();
       }
     }
+
     if (payload.map) {
       this.updateMiniMap(payload.map);
     }
@@ -349,6 +353,7 @@ export default class UIScene extends Phaser.Scene {
       this.optionsContainer.setVisible(open);
       if (open) {
         this.refreshOptionsList();
+
       }
     }
   }
@@ -362,6 +367,7 @@ export default class UIScene extends Phaser.Scene {
       this.quickSlotContainer.setAlpha(open ? 0.6 : 1);
     }
   }
+
 
   updateHud(hudState) {
     const hpRatio = hudState.maxHp > 0 ? Phaser.Math.Clamp(hudState.hp / hudState.maxHp, 0, 1) : 0;
@@ -477,6 +483,7 @@ export default class UIScene extends Phaser.Scene {
   }
 
   handleOptionsInput() {
+
     if (Phaser.Input.Keyboard.JustDown(this.navKeys.up)) {
       this.optionsSelectionIndex = Phaser.Math.Wrap(this.optionsSelectionIndex - 1, 0, this.optionsConfig.length);
       this.refreshOptionsList();
@@ -485,14 +492,7 @@ export default class UIScene extends Phaser.Scene {
       this.refreshOptionsList();
     }
 
-    if (Phaser.Input.Keyboard.JustDown(this.navKeys.left)) {
-      this.modifyOption(-1);
-    } else if (Phaser.Input.Keyboard.JustDown(this.navKeys.right)) {
-      this.modifyOption(1);
-    }
 
-    if (Phaser.Input.Keyboard.JustDown(this.navKeys.esc)) {
-      this.gameScene?.events.emit("ui-close-panel", { panel: "options" });
     }
   }
 
@@ -509,7 +509,7 @@ export default class UIScene extends Phaser.Scene {
 
   modifyOption(direction) {
     const config = this.optionsConfig[this.optionsSelectionIndex];
-    if (!config) {
+
       return;
     }
     const current = this.optionsState?.[config.key];
@@ -529,6 +529,7 @@ export default class UIScene extends Phaser.Scene {
     this.refreshOptionsList();
     this.gameScene?.events.emit("ui-options-change", { [config.key]: nextValue });
   }
+
 
   refreshInventoryList() {
     if (!this.inventoryData.length) {
@@ -560,6 +561,7 @@ export default class UIScene extends Phaser.Scene {
   refreshOptionsList() {
     const lines = this.optionsConfig.map((config, index) => {
       const selector = index === this.optionsSelectionIndex ? "▶" : " ";
+
       const value = this.formatOptionValue(config);
       return `${selector} ${config.label}: ${value}`;
     });
@@ -567,14 +569,7 @@ export default class UIScene extends Phaser.Scene {
   }
 
   formatOptionValue(config) {
-    const value = this.optionsState?.[config.key];
-    if (config.type === "range") {
-      return `${Math.round((value ?? 0) * 100)}%`;
-    }
-    if (config.key === "resolutionScale") {
-      return `${Math.round((value ?? 1) * 100)}%`;
-    }
-    return value ?? config.values?.[0];
+
   }
 
   createOptionsConfig() {
@@ -583,7 +578,7 @@ export default class UIScene extends Phaser.Scene {
       { key: "sfxVolume", label: "SFX Volume", type: "range", min: 0, max: 1, step: 0.1 },
       { key: "bgmVolume", label: "BGM Volume", type: "range", min: 0, max: 1, step: 0.1 },
       { key: "resolutionScale", label: "Resolution Scale", type: "range", min: 0.7, max: 1.1, step: 0.05 },
-      { key: "graphicsQuality", label: "Graphics Quality", type: "choice", values: ["High", "Performance"] }
+
     ];
   }
 
@@ -625,6 +620,7 @@ export default class UIScene extends Phaser.Scene {
       this.gameScene.events.off("ui-panel", this.handlePanelToggle, this);
       this.gameScene.events.off("ui-menu-state", this.handleMenuState, this);
     }
+
     this.gameScene = null;
   }
 }

@@ -30,6 +30,7 @@ export default class GameScene extends Phaser.Scene {
     this.inventory = [];
     this.quickSlots = [];
     this.optionsState = {};
+
     this.inventoryDirty = false;
     this.quickSlotsDirty = false;
     this.optionsDirty = false;
@@ -230,6 +231,7 @@ export default class GameScene extends Phaser.Scene {
     this.quickSlotsDirty = true;
     this.optionsDirty = true;
 
+
     this.audio.applyMixSettings(this.optionsState);
     this.updateResolutionScale();
     this.applyGraphicsQuality(this.optionsState.graphicsQuality);
@@ -239,6 +241,7 @@ export default class GameScene extends Phaser.Scene {
     this.events.on("ui-options-change", this.applyOptionsPatch, this);
     this.events.on("ui-assign-quick-slot", this.handleQuickSlotAssignment, this);
     this.events.on("ui-close-panel", this.handleUIClosePanel, this);
+
     this.events.once("ui-ready", this.handleUIReady, this);
 
     if (this.scene.isActive && this.scene.isActive("UIScene")) {
@@ -346,6 +349,7 @@ export default class GameScene extends Phaser.Scene {
     this.syncUI(true);
   }
 
+
   applyOptionsPatch(patch) {
     if (!patch) {
       return;
@@ -405,6 +409,7 @@ export default class GameScene extends Phaser.Scene {
     if (force || this.optionsDirty) {
       this.optionsDirty = false;
     }
+
   }
 
   buildUIState(force = false) {
@@ -445,6 +450,7 @@ export default class GameScene extends Phaser.Scene {
       payload.options = { ...this.optionsState };
     }
 
+
     return payload;
   }
 
@@ -463,6 +469,7 @@ export default class GameScene extends Phaser.Scene {
   collectInventoryState() {
     return this.inventory.map((item) => ({ ...item }));
   }
+
 
   collectMapState() {
     if (!this.map) {
@@ -650,6 +657,7 @@ export default class GameScene extends Phaser.Scene {
     this.events.off("ui-options-change", this.applyOptionsPatch, this);
     this.events.off("ui-assign-quick-slot", this.handleQuickSlotAssignment, this);
     this.events.off("ui-close-panel", this.handleUIClosePanel, this);
+
     this.events.off("ui-ready", this.handleUIReady, this);
   }
 }

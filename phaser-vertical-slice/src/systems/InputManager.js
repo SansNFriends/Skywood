@@ -30,6 +30,26 @@ const DEFAULT_KEYMAP = {
 
 const keyStateCache = new Map();
 
+const KEYCODE_TO_NAME = Object.entries(Phaser.Input.Keyboard.KeyCodes).reduce((acc, [name, code]) => {
+  if (typeof code === "number" && acc[code] === undefined) {
+    acc[code] = name;
+  }
+  return acc;
+}, {});
+
+const SPECIAL_KEY_LABELS = {
+  SPACE: "Space",
+  ESC: "Esc",
+  ESCAPE: "Esc",
+  LEFT: "Left",
+  RIGHT: "Right",
+  UP: "Up",
+  DOWN: "Down",
+  PAGE_UP: "Page Up",
+  PAGE_DOWN: "Page Down",
+  PRINT_SCREEN: "Print Screen"
+};
+
 function resolveKeyCode(code) {
   if (typeof code === "number") {
     return code;
@@ -38,11 +58,29 @@ function resolveKeyCode(code) {
   return keyCode ?? code;
 }
 
+function formatKeyLabel(code) {
+  if (typeof code !== "number") {
+    return String(code);
+  }
+  const name = KEYCODE_TO_NAME[code];
+  if (!name) {
+    return `Key ${code}`;
+  }
+  if (SPECIAL_KEY_LABELS[name]) {
+    return SPECIAL_KEY_LABELS[name];
+  }
+  return name
+    .split("_")
+    .map((segment) => segment.charAt(0) + segment.slice(1).toLowerCase())
+    .join(" ");
+}
+
 export default class InputManager {
   constructor(scene) {
     this.scene = scene;
     this.keyboard = scene.input.keyboard;
     this.bindings = new Map();
+    this.bindingCodes = new Map();
     this.justPressed = new Set();
     this.justReleased = new Set();
 
@@ -59,11 +97,7 @@ export default class InputManager {
   }
 
   installDefaults() {
-    Object.entries(DEFAULT_KEYMAP).forEach(([action, keys]) => {
-      const keyObjects = keys.map((code) => this.keyboard.addKey(resolveKeyCode(code)));
-      this.bindings.set(action, keyObjects);
-      keyStateCache.set(action, false);
-    });
+    this.resetAllBindings();
   }
 
   handleUpdate() {
@@ -119,12 +153,14 @@ export default class InputManager {
     this.resetKeys();
   }
 
+
   destroy() {
     this.scene.events.off(Phaser.Scenes.Events.UPDATE, this.handleUpdate, this);
     this.scene.game.events.off(Phaser.Core.Events.BLUR, this.handleBlur, this);
     this.scene.game.events.off(Phaser.Core.Events.FOCUS, this.handleFocus, this);
     this.bindings.forEach((keys) => keys.forEach((key) => key.destroy()));
     this.bindings.clear();
+    this.bindingCodes.clear();
     keyStateCache.clear();
   }
 }
