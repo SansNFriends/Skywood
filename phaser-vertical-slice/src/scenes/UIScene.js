@@ -510,7 +510,7 @@ export default class UIScene extends Phaser.Scene {
     const config = this.optionsConfig[this.optionsSelectionIndex];
 
       return;
-    }
+    
     const current = this.optionsState?.[config.key];
     let nextValue = current;
 
