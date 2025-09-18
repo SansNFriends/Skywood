@@ -9,16 +9,8 @@ import Projectile from "../entities/Projectile.js";
 import LootDrop from "../entities/LootDrop.js";
 import Spawner from "../systems/Spawner.js";
 import SaveManager from "../systems/SaveManager.js";
-import debugToggle from "../ui/DebugToggle.js";
-import { GFX, QUALITY_LEVELS, applyGraphicsPreset, updateCurrentZoom } from "../config/graphics.js";
-import {
-  createDefaultInventory,
-  createDefaultQuickSlots,
-  ensureItemIconTexture,
-  getItemDefinition
-} from "../data/ItemCatalog.js";
+import debugHudToggle from "../ui/DebugToggle.js";
 
-import debugToggle from "../ui/DebugToggle.js";
 import { GFX, QUALITY_LEVELS, applyGraphicsPreset, updateCurrentZoom } from "../config/graphics.js";
 import {
   createDefaultInventory,
@@ -93,7 +85,9 @@ export default class GameScene extends Phaser.Scene {
 
     this.resetQueued = false;
 
-    this.debugHudVisible = debugToggle.getEnabled();
+
+    this.debugHudVisible = debugHudToggle.getEnabled();
+
 
   }
 
@@ -157,9 +151,11 @@ export default class GameScene extends Phaser.Scene {
     this.markProgressDirty("startup", true);
 
     this.perfMeter = new PerfMeter(this);
-    debugToggle.on("changed", this.handleDebugHudChange, this);
-    debugToggle.bind(this);
-    this.handleDebugHudChange(debugToggle.getEnabled());
+
+    debugHudToggle.on("changed", this.handleDebugHudChange, this);
+    debugHudToggle.bind(this);
+    this.handleDebugHudChange(debugHudToggle.getEnabled());
+
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
   }
@@ -347,6 +343,7 @@ export default class GameScene extends Phaser.Scene {
     this.inventory = sourceInventory
       .map((item, index) => this.normalizeInventoryItem(item, index))
       .filter((entry) => entry !== null);
+
     if (!usingSavedInventory) {
       this.sortInventoryEntries();
     }
@@ -1511,8 +1508,10 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
-    debugToggle.off("changed", this.handleDebugHudChange, this);
-    debugToggle.unbind(this);
+
+    debugHudToggle.off("changed", this.handleDebugHudChange, this);
+    debugHudToggle.unbind(this);
+
     if (this.saveManager) {
       this.saveDirty = true;
       this.commitSave();

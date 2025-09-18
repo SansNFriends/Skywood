@@ -15,9 +15,7 @@ export const QUALITY_PRESETS = Object.freeze({
     enableEnvAnim: false
   },
   [QUALITY_LEVELS.MID]: {
-
     zoom: 1,
-
     enableParallax: true,
     parallaxLayers: 6,
     enableEnvAnim: true
@@ -37,7 +35,6 @@ export const GFX = {
   enableParallax: QUALITY_PRESETS[QUALITY_LEVELS.MID].enableParallax,
   parallaxLayers: QUALITY_PRESETS[QUALITY_LEVELS.MID].parallaxLayers,
   enableEnvAnim: QUALITY_PRESETS[QUALITY_LEVELS.MID].enableEnvAnim,
-
   showDebugHUD: false,
   debugToggleKey: DEFAULT_DEBUG_TOGGLE_KEY
 

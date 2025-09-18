@@ -1,7 +1,7 @@
 import Phaser from "../phaser.js";
 import { INPUT_KEYS } from "../systems/InputManager.js";
 import { ITEM_CATALOG, ensureAllItemIcons } from "../data/ItemCatalog.js";
-import debugToggle from "../ui/DebugToggle.js";
+import debugHudToggle from "../ui/DebugToggle.js";
 
 
 const HUD_DEPTH = 2000;
@@ -54,7 +54,8 @@ export default class UIScene extends Phaser.Scene {
     this.bugOverlayVisible = false;
     this.bugToggleKey = null;
     this.resetInProgress = false;
-    this.debugHudVisible = debugToggle.getEnabled();
+    this.debugHudVisible = debugHudToggle.getEnabled();
+
 
   }
 
@@ -72,8 +73,10 @@ export default class UIScene extends Phaser.Scene {
     this.createHud();
     this.createPerformanceReadout();
     ensureAllItemIcons(this);
-    debugToggle.on("changed", this.handleDebugHudChange, this);
-    this.handleDebugHudChange(debugToggle.getEnabled());
+
+    debugHudToggle.on("changed", this.handleDebugHudChange, this);
+    this.handleDebugHudChange(debugHudToggle.getEnabled());
+
     this.createQuickSlots();
     this.createMiniMap();
     this.createInventoryPanel();
@@ -1359,7 +1362,8 @@ export default class UIScene extends Phaser.Scene {
   }
 
   shutdown() {
-    debugToggle.off("changed", this.handleDebugHudChange, this);
+    debugHudToggle.off("changed", this.handleDebugHudChange, this);
+
     if (this.gameScene && this.gameScene.events) {
       this.gameScene.events.off("ui-state", this.handleStateUpdate, this);
       this.gameScene.events.off("ui-panel", this.handlePanelToggle, this);

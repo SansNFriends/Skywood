@@ -9,7 +9,6 @@ function resolveToggleEventName() {
   return `keydown-${key}`;
 }
 
-
 class DebugToggle extends Phaser.Events.EventEmitter {
   constructor() {
     super();
@@ -34,6 +33,7 @@ class DebugToggle extends Phaser.Events.EventEmitter {
     const handleShutdown = () => {
       this.unbind(scene);
     };
+
     keyboard.on(eventName, handleToggle);
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, handleShutdown);
 
@@ -82,6 +82,9 @@ class DebugToggle extends Phaser.Events.EventEmitter {
   }
 }
 
-const debugToggle = new DebugToggle();
+const debugHudToggle = new DebugToggle();
 
-export default debugToggle;
+export { debugHudToggle };
+
+export default debugHudToggle;
+
