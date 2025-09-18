@@ -198,7 +198,22 @@ export default class InputManager {
     }));
   }
 
-
+  applyBindingSnapshot(snapshot) {
+    if (!Array.isArray(snapshot)) {
+      return;
+    }
+    snapshot.forEach((entry) => {
+      if (!entry || !entry.action) {
+        return;
+      }
+      const codes = Array.isArray(entry.codes) ? entry.codes : [];
+      if (!codes.length) {
+        this.resetBindingsToDefault(entry.action);
+        return;
+      }
+      this.setBinding(entry.action, codes);
+    });
+  }
 
   resetBindingsToDefault(action) {
     if (!action || !DEFAULT_KEYMAP[action]) {

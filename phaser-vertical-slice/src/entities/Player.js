@@ -19,7 +19,8 @@ const PLAYER_CONFIG = {
   maxJumps: 2,
   dashSpeed: 450,
   dashDuration: 420,
-  dashCooldown: 520
+  dashCooldown: 520,
+  hitInvulnerability: 2000
 };
 
 const STEP_SCALE = 1 / 60;
@@ -43,6 +44,7 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     this.dashTimer = 0;
     this.dashCooldownTimer = 0;
     this.allowDashReset = true;
+    this.dashDirection = 0;
     this.groundContacts = new Set();
     this.runAnimElapsed = 0;
     this.runFrameToggle = false;
@@ -50,7 +52,7 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     this.hitstunTimer = 0;
     this.knockback = { x: 0, y: 0 };
     this.inputDisabled = false;
-
+    this.invulnFlashTimer = 0;
 
     this.initBody(x, y);
     this.registerCollisions();
@@ -286,11 +288,12 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     const dashDir = direction !== 0 ? direction : this.facing;
 
     this.isDashing = true;
+    this.dashDirection = dashDir;
     this.dashTimer = PLAYER_CONFIG.dashDuration;
     this.dashCooldownTimer = PLAYER_CONFIG.dashCooldown + PLAYER_CONFIG.dashDuration;
-    this.setIgnoreGravity(true);
     this.setAwake(true);
-    this.setVelocity(toStep(PLAYER_CONFIG.dashSpeed * dashDir), 0);
+    const currentVelY = this.body ? this.body.velocity.y : 0;
+    this.setVelocity(toStep(PLAYER_CONFIG.dashSpeed * dashDir), currentVelY);
   }
 
   updateDash(delta) {
@@ -305,10 +308,16 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
       return;
     }
 
+    const dashVelocity = toStep(PLAYER_CONFIG.dashSpeed * this.dashDirection);
+    this.setVelocityX(dashVelocity);
+    if (this.isOnGround && this.body && this.body.velocity.y > 0) {
+      this.setVelocityY(0);
+    }
+
     this.dashTimer -= delta;
     if (this.dashTimer <= 0) {
       this.isDashing = false;
-      this.setIgnoreGravity(false);
+      this.dashDirection = 0;
       if (!this.isOnGround) {
         this.allowDashReset = false;
       }
@@ -337,7 +346,7 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
   }
 
   takeDamage(amount, sourceX) {
-    if (!this.stats.takeDamage(amount, 1000)) {
+    if (!this.stats.takeDamage(amount, PLAYER_CONFIG.hitInvulnerability)) {
       return false;
     }
     this.hitstunTimer = HITSTUN_MS;

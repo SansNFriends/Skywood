@@ -1,18 +1,15 @@
 import Phaser from "../phaser.js";
 import { INPUT_KEYS } from "../systems/InputManager.js";
 
-
 const HUD_DEPTH = 2000;
 const QUICK_SLOT_COUNT = 4;
 const MINI_MAP_SIZE = { width: 176, height: 112 };
 const OPTIONS_VISIBLE_COUNT = 9;
 
-
 export default class UIScene extends Phaser.Scene {
   constructor() {
     super({ key: "UIScene" });
     this.gameSceneKey = "GameScene";
-
     this.gameScene = null;
     this.hud = null;
     this.hpBarWidth = 220;
@@ -37,29 +34,24 @@ export default class UIScene extends Phaser.Scene {
     this.optionsConfig = this.createOptionsConfig();
     this.optionsVisible = false;
     this.optionsSelectionIndex = 0;
-
     this.optionsScrollOffset = 0;
     this.navKeys = null;
-
     this.bindingState = [];
     this.bindingLookup = new Map();
     this.bindingListenAction = null;
     this.bindingListenLabel = "";
     this.optionsHintBase = "";
-
     this.systemStatusText = null;
     this.systemState = { save: { state: "idle", timestamp: 0, dirty: false, reason: "", available: true } };
     this.bugOverlay = null;
     this.bugOverlayText = null;
     this.bugOverlayVisible = false;
     this.bugToggleKey = null;
-
   }
 
   init(data) {
     const providedKey = data && typeof data.gameSceneKey === "string" ? data.gameSceneKey : null;
     this.gameSceneKey = providedKey || "GameScene";
-
   }
 
   create() {
@@ -74,10 +66,8 @@ export default class UIScene extends Phaser.Scene {
     this.createMiniMap();
     this.createInventoryPanel();
     this.createOptionsPanel();
-
     this.createSystemBanner();
     this.createBugOverlay();
-
     this.installInputHandlers();
 
     this.scene.bringToTop();
@@ -85,13 +75,11 @@ export default class UIScene extends Phaser.Scene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
 
-
     this.emitGameEvent("ui-ready");
   }
 
   bindGameSceneEvents() {
     if (!this.gameScene || !this.gameScene.events) {
-
       return;
     }
     this.gameScene.events.on("ui-state", this.handleStateUpdate, this);
@@ -260,7 +248,6 @@ export default class UIScene extends Phaser.Scene {
       })
       .setOrigin(0, 0);
     const hint = this.add
-
       .text(
         -220,
         140,
@@ -271,7 +258,6 @@ export default class UIScene extends Phaser.Scene {
 
     overlay.on("pointerdown", () => {
       this.emitGameEvent("ui-close-panel", { panel: "inventory" });
-
     });
 
     container.add([overlay, panel, title, list, detail, hint]);
@@ -298,21 +284,17 @@ export default class UIScene extends Phaser.Scene {
     const list = this.add
       .text(-200, -90, "", {
         fontFamily: "Rubik, 'Segoe UI', sans-serif",
-
         fontSize: "16px",
-
         color: "#f2f4ff",
         lineSpacing: 6
       })
       .setOrigin(0, 0);
-
     const baseHint =
       "\u2191\u2193 \ud56d\ubaa9 \uc774\ub3d9 \u2022 \u2190\u2192 \uac12 \uc870\uc815 \u2022 Enter \ud0a4 \uc7ac\uc124\uc815 \u2022 ESC \ub2eb\uae30";
     const hint = this.add.text(-200, 120, baseHint, this.getHintStyle()).setOrigin(0, 0);
 
     overlay.on("pointerdown", () => {
       this.emitGameEvent("ui-close-panel", { panel: "options" });
-
     });
 
     container.add([overlay, panel, title, list, hint]);
@@ -320,7 +302,6 @@ export default class UIScene extends Phaser.Scene {
     this.optionsContainer = container;
     this.optionsListText = list;
     this.optionsHintText = hint;
-
     this.optionsHintBase = baseHint;
   }
 
@@ -379,7 +360,6 @@ export default class UIScene extends Phaser.Scene {
 
     this.bugOverlay = container;
     this.bugOverlayText = body;
-
   }
 
   installInputHandlers() {
@@ -389,15 +369,12 @@ export default class UIScene extends Phaser.Scene {
       left: Phaser.Input.Keyboard.KeyCodes.LEFT,
       right: Phaser.Input.Keyboard.KeyCodes.RIGHT,
       esc: Phaser.Input.Keyboard.KeyCodes.ESC,
-
       enter: Phaser.Input.Keyboard.KeyCodes.ENTER,
-
       one: Phaser.Input.Keyboard.KeyCodes.ONE,
       two: Phaser.Input.Keyboard.KeyCodes.TWO,
       three: Phaser.Input.Keyboard.KeyCodes.THREE,
       four: Phaser.Input.Keyboard.KeyCodes.FOUR
     });
-
     this.input.keyboard.on("keydown", this.handleGlobalKeydown, this);
     this.input.keyboard.on("keydown-ESC", this.handleEscKey, this);
     this.bugToggleKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F8);
@@ -406,7 +383,6 @@ export default class UIScene extends Phaser.Scene {
         this.toggleBugOverlay();
       });
     }
-
   }
 
   update() {
@@ -445,23 +421,19 @@ export default class UIScene extends Phaser.Scene {
         this.refreshOptionsList();
       }
     }
-
     if (payload.bindings) {
       this.setBindingState(payload.bindings);
     }
-
     if (payload.map) {
       this.updateMiniMap(payload.map);
     }
     if (payload.menu) {
       this.handleMenuState(payload.menu);
-
       this.syncPanelsFromMenu(payload.menu);
     }
     if (payload.system) {
       this.updateSystemStatus(payload.system);
     }
-
   }
 
   syncPanelsFromMenu(menuState) {
@@ -496,7 +468,6 @@ export default class UIScene extends Phaser.Scene {
           this.cancelBindingCapture();
         }
       }
-
     }
   }
 
@@ -513,10 +484,8 @@ export default class UIScene extends Phaser.Scene {
       this.optionsContainer.setVisible(open);
       if (open) {
         this.refreshOptionsList();
-
       } else {
         this.cancelBindingCapture();
-
       }
     }
   }
@@ -530,7 +499,6 @@ export default class UIScene extends Phaser.Scene {
       this.quickSlotContainer.setAlpha(open ? 0.6 : 1);
     }
   }
-
 
   handleEscKey() {
     if (this.bindingListenAction) {
@@ -632,7 +600,6 @@ export default class UIScene extends Phaser.Scene {
     }
   }
 
-
   setBindingState(bindings) {
     if (!Array.isArray(bindings)) {
       this.bindingState = [];
@@ -663,7 +630,6 @@ export default class UIScene extends Phaser.Scene {
   }
 
   updatePerformance(performance) {
-
     const fps = performance && typeof performance.fps === "number" ? performance.fps : 0;
     const frameTime = performance && typeof performance.frameTime === "number" ? performance.frameTime : 0;
     const objects = performance && typeof performance.objects === "number" ? performance.objects : 0;
@@ -696,7 +662,6 @@ export default class UIScene extends Phaser.Scene {
       const free = typeof textPool.free === "number" ? textPool.free : 0;
       lines.push(`TextPool ${live}/${free}`);
     }
-
     this.performanceText.setText(lines);
   }
 
@@ -714,15 +679,12 @@ export default class UIScene extends Phaser.Scene {
       }
       visual.frame.setFillStyle(0x1f273a, 0.9);
       const name = slot.name || "--";
-
       visual.label.setText(name.length > 9 ? `${name.slice(0, 8)}...` : name);
-
       visual.quantity.setText(slot.quantity > 1 ? `x${slot.quantity}` : "");
     });
   }
 
   updateMiniMap(mapState) {
-
     const graphics = this.miniMapGraphics;
     if (!graphics) {
       return;
@@ -733,14 +695,12 @@ export default class UIScene extends Phaser.Scene {
     graphics.fillRect(0, 0, MINI_MAP_SIZE.width, MINI_MAP_SIZE.height);
 
     if (!mapState || !mapState.width || !mapState.height) {
-
       return;
     }
 
     const scale = Math.min(MINI_MAP_SIZE.width / mapState.width, MINI_MAP_SIZE.height / mapState.height);
     const offsetX = (MINI_MAP_SIZE.width - mapState.width * scale) * 0.5;
     const offsetY = (MINI_MAP_SIZE.height - mapState.height * scale) * 0.5;
-
 
     function drawPoint(color, x, y, size) {
       const pointSize = typeof size === "number" ? size : 4;
@@ -753,12 +713,10 @@ export default class UIScene extends Phaser.Scene {
       );
     }
 
-
     if (mapState.player) {
       drawPoint(0x6cf1ff, mapState.player.x, mapState.player.y, 6);
     }
     if (Array.isArray(mapState.mobs)) {
-
       for (let i = 0; i < mapState.mobs.length; i += 1) {
         const mob = mapState.mobs[i];
         if (mob) {
@@ -770,7 +728,6 @@ export default class UIScene extends Phaser.Scene {
     if (mapState.camera) {
       graphics.lineStyle(1, 0xffffff, 0.7);
       graphics.strokeRect(
-
         offsetX + mapState.camera.x * scale,
         offsetY + mapState.camera.y * scale,
         mapState.camera.width * scale,
@@ -811,14 +768,11 @@ export default class UIScene extends Phaser.Scene {
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.navKeys.esc)) {
-
       this.emitGameEvent("ui-close-panel", { panel: "inventory" });
-
     }
   }
 
   handleOptionsInput() {
-
     if (Phaser.Input.Keyboard.JustDown(this.navKeys.esc)) {
       if (this.bindingListenAction) {
         this.cancelBindingCapture();
@@ -832,7 +786,6 @@ export default class UIScene extends Phaser.Scene {
       return;
     }
 
-
     if (Phaser.Input.Keyboard.JustDown(this.navKeys.up)) {
       this.optionsSelectionIndex = Phaser.Math.Wrap(this.optionsSelectionIndex - 1, 0, this.optionsConfig.length);
       this.refreshOptionsList();
@@ -840,7 +793,6 @@ export default class UIScene extends Phaser.Scene {
       this.optionsSelectionIndex = Phaser.Math.Wrap(this.optionsSelectionIndex + 1, 0, this.optionsConfig.length);
       this.refreshOptionsList();
     }
-
 
     const config = this.optionsConfig[this.optionsSelectionIndex];
     if (!config) {
@@ -872,7 +824,6 @@ export default class UIScene extends Phaser.Scene {
     }
   }
 
-
   assignQuickSlot(slotIndex) {
     if (!this.inventoryData.length) {
       return;
@@ -881,14 +832,11 @@ export default class UIScene extends Phaser.Scene {
     if (!item) {
       return;
     }
-
     this.emitGameEvent("ui-assign-quick-slot", { slotIndex, itemId: item.id });
-
   }
 
   modifyOption(direction) {
     const config = this.optionsConfig[this.optionsSelectionIndex];
-
     if (!config || (config.type !== "range" && config.type !== "choice")) {
       return;
     }
@@ -908,11 +856,9 @@ export default class UIScene extends Phaser.Scene {
       }
       const fallback = list[0];
       const currentIndex = Math.max(0, list.indexOf(hasCurrent ? current : fallback));
-
       const nextIndex = Phaser.Math.Wrap(currentIndex + direction, 0, list.length);
       nextValue = list[nextIndex];
     }
-
 
     this.optionsState = Object.assign({}, state, { [config.key]: nextValue });
     this.refreshOptionsList();
@@ -997,7 +943,6 @@ export default class UIScene extends Phaser.Scene {
     if (!this.inventoryData.length) {
       this.inventoryListText.setText(["(\uc544\uc774\ud15c \uc5c6\uc74c)"]);
       this.inventoryDetailText.setText("\uc804\ub9ac\ud488\uc744 \ud68d\ub4dd\ud574 \uc778\ubca4\ud1a0\ub9ac\ub97c \ucc44\uc6b0\uc138\uc694.");
-
       return;
     }
 
@@ -1005,24 +950,19 @@ export default class UIScene extends Phaser.Scene {
 
     const quickSlotMap = new Map();
     this.quickSlotData.forEach((slot) => {
-
       if (slot && slot.itemId) {
-
         quickSlotMap.set(slot.itemId, slot.index + 1);
       }
     });
 
     const lines = this.inventoryData.map((item, index) => {
-
       const selector = index === this.inventorySelectionIndex ? "\u25b6" : " ";
-
       const slotTag = quickSlotMap.has(item.id) ? ` [${quickSlotMap.get(item.id)}]` : "";
       return `${selector} ${item.name}${slotTag}  x${item.quantity}`;
     });
 
     this.inventoryListText.setText(lines);
     const selected = this.inventoryData[this.inventorySelectionIndex];
-
     const detailText = selected && selected.description ? selected.description : "\uc0c1\uc138 \uc124\uba85\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.";
     this.inventoryDetailText.setText(detailText);
   }
@@ -1051,13 +991,11 @@ export default class UIScene extends Phaser.Scene {
     this.ensureOptionsSelectionVisible();
 
     const lines = this.optionsConfig.map((config, index) => {
-
       const selector = index === this.optionsSelectionIndex ? "\u25b6" : " ";
       if (config.type === "action") {
         const suffix = config.action === "reset-bindings" ? " (Enter)" : "";
         return `${selector} ${config.label}${suffix}`;
       }
-
       const value = this.formatOptionValue(config);
       return `${selector} ${config.label}: ${value}`;
     });
@@ -1077,7 +1015,6 @@ export default class UIScene extends Phaser.Scene {
   }
 
   formatOptionValue(config) {
-
     if (config.type === "binding") {
       if (this.bindingListenAction === config.action) {
         return "[\uc785\ub825 \ub300\uae30]";
@@ -1127,7 +1064,6 @@ export default class UIScene extends Phaser.Scene {
       return entry.codes.map((code) => String(code)).join(" / ");
     }
     return "--";
-
   }
 
   createOptionsConfig() {
@@ -1136,7 +1072,6 @@ export default class UIScene extends Phaser.Scene {
       { key: "sfxVolume", label: "SFX Volume", type: "range", min: 0, max: 1, step: 0.1 },
       { key: "bgmVolume", label: "BGM Volume", type: "range", min: 0, max: 1, step: 0.1 },
       { key: "resolutionScale", label: "Resolution Scale", type: "range", min: 0.7, max: 1.1, step: 0.05 },
-
       { key: "graphicsQuality", label: "Graphics Quality", type: "choice", values: ["High", "Performance"] },
       { key: "bind.moveLeft", label: "Move Left", type: "binding", action: INPUT_KEYS.LEFT },
       { key: "bind.moveRight", label: "Move Right", type: "binding", action: INPUT_KEYS.RIGHT },
@@ -1150,7 +1085,6 @@ export default class UIScene extends Phaser.Scene {
       { key: "bind.inventory", label: "Inventory Menu", type: "binding", action: INPUT_KEYS.INVENTORY },
       { key: "bind.options", label: "Options Menu", type: "binding", action: INPUT_KEYS.OPTIONS },
       { key: "resetBindings", label: "Reset Key Bindings", type: "action", action: "reset-bindings" }
-
     ];
   }
 
@@ -1187,14 +1121,11 @@ export default class UIScene extends Phaser.Scene {
   }
 
   shutdown() {
-
     if (this.gameScene && this.gameScene.events) {
-
       this.gameScene.events.off("ui-state", this.handleStateUpdate, this);
       this.gameScene.events.off("ui-panel", this.handlePanelToggle, this);
       this.gameScene.events.off("ui-menu-state", this.handleMenuState, this);
     }
-
     this.cancelBindingCapture();
     if (this.input && this.input.keyboard) {
       this.input.keyboard.off("keydown", this.handleGlobalKeydown, this);
@@ -1204,7 +1135,6 @@ export default class UIScene extends Phaser.Scene {
       this.bugToggleKey.destroy();
       this.bugToggleKey = null;
     }
-
     this.gameScene = null;
   }
 }
