@@ -1,5 +1,5 @@
 import Phaser from "../phaser.js";
-import { INPUT_KEYS } from "../systems/InputManager.js";
+
 
 const HUD_DEPTH = 2000;
 const QUICK_SLOT_COUNT = 4;
@@ -8,7 +8,7 @@ const MINI_MAP_SIZE = { width: 176, height: 112 };
 export default class UIScene extends Phaser.Scene {
   constructor() {
     super({ key: "UIScene" });
-    this.gameSceneKey = "GameScene";
+
     this.gameScene = null;
     this.hud = null;
     this.hpBarWidth = 220;
@@ -34,16 +34,7 @@ export default class UIScene extends Phaser.Scene {
     this.optionsVisible = false;
     this.optionsSelectionIndex = 0;
     this.navKeys = null;
-    this.bindingState = [];
-    this.bindingLookup = new Map();
-    this.bindingListenAction = null;
-    this.bindingListenLabel = "";
-    this.optionsHintBase = "";
-  }
 
-  init(data) {
-    const providedKey = data && typeof data.gameSceneKey === "string" ? data.gameSceneKey : null;
-    this.gameSceneKey = providedKey || "GameScene";
   }
 
   create() {
@@ -65,11 +56,7 @@ export default class UIScene extends Phaser.Scene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
 
-    this.emitGameEvent("ui-ready");
-  }
 
-  bindGameSceneEvents() {
-    if (!this.gameScene || !this.gameScene.events) {
       return;
     }
     this.gameScene.events.on("ui-state", this.handleStateUpdate, this);
@@ -77,11 +64,6 @@ export default class UIScene extends Phaser.Scene {
     this.gameScene.events.on("ui-menu-state", this.handleMenuState, this);
   }
 
-  emitGameEvent(eventName, payload) {
-    if (this.gameScene && this.gameScene.events) {
-      this.gameScene.events.emit(eventName, payload);
-    }
-  }
 
   createHud() {
     const container = this.add.container(24, 24).setDepth(HUD_DEPTH).setScrollFactor(0);
@@ -238,16 +220,7 @@ export default class UIScene extends Phaser.Scene {
       })
       .setOrigin(0, 0);
     const hint = this.add
-      .text(
-        -220,
-        140,
-        "\u2191\u2193 \uc120\ud0dd \u2022 1~4 \ud035\uc2ac\ub86f \uc9c0\uc815 \u2022 ESC \ub2eb\uae30",
-        this.getHintStyle()
-      )
-      .setOrigin(0, 0);
 
-    overlay.on("pointerdown", () => {
-      this.emitGameEvent("ui-close-panel", { panel: "inventory" });
     });
 
     container.add([overlay, panel, title, list, detail, hint]);
@@ -279,12 +252,7 @@ export default class UIScene extends Phaser.Scene {
         lineSpacing: 6
       })
       .setOrigin(0, 0);
-    const baseHint =
-      "\u2191\u2193 \ud56d\ubaa9 \uc774\ub3d9 \u2022 \u2190\u2192 \uac12 \uc870\uc815 \u2022 Enter \ud0a4 \uc7ac\uc124\uc815 \u2022 ESC \ub2eb\uae30";
-    const hint = this.add.text(-200, 120, baseHint, this.getHintStyle()).setOrigin(0, 0);
 
-    overlay.on("pointerdown", () => {
-      this.emitGameEvent("ui-close-panel", { panel: "options" });
     });
 
     container.add([overlay, panel, title, list, hint]);
@@ -292,7 +260,7 @@ export default class UIScene extends Phaser.Scene {
     this.optionsContainer = container;
     this.optionsListText = list;
     this.optionsHintText = hint;
-    this.optionsHintBase = baseHint;
+
   }
 
   installInputHandlers() {
@@ -302,13 +270,13 @@ export default class UIScene extends Phaser.Scene {
       left: Phaser.Input.Keyboard.KeyCodes.LEFT,
       right: Phaser.Input.Keyboard.KeyCodes.RIGHT,
       esc: Phaser.Input.Keyboard.KeyCodes.ESC,
-      enter: Phaser.Input.Keyboard.KeyCodes.ENTER,
+
       one: Phaser.Input.Keyboard.KeyCodes.ONE,
       two: Phaser.Input.Keyboard.KeyCodes.TWO,
       three: Phaser.Input.Keyboard.KeyCodes.THREE,
       four: Phaser.Input.Keyboard.KeyCodes.FOUR
     });
-    this.input.keyboard.on("keydown", this.handleGlobalKeydown, this);
+
   }
 
   update() {
@@ -347,50 +315,13 @@ export default class UIScene extends Phaser.Scene {
         this.refreshOptionsList();
       }
     }
-    if (payload.bindings) {
-      this.setBindingState(payload.bindings);
-    }
+
     if (payload.map) {
       this.updateMiniMap(payload.map);
     }
     if (payload.menu) {
       this.handleMenuState(payload.menu);
-      this.syncPanelsFromMenu(payload.menu);
-    }
-  }
 
-  syncPanelsFromMenu(menuState) {
-    if (!menuState) {
-      return;
-    }
-
-    if (menuState.inventoryOpen !== undefined && this.inventoryContainer) {
-      const shouldOpen = Boolean(menuState.inventoryOpen);
-      if (this.inventoryVisible !== shouldOpen) {
-        this.inventoryVisible = shouldOpen;
-        this.inventoryContainer.setVisible(shouldOpen);
-        if (shouldOpen) {
-          this.inventorySelectionIndex = Phaser.Math.Clamp(
-            this.inventorySelectionIndex,
-            0,
-            Math.max(0, this.inventoryData.length - 1)
-          );
-          this.refreshInventoryList();
-        }
-      }
-    }
-
-    if (menuState.optionsOpen !== undefined && this.optionsContainer) {
-      const shouldOpen = Boolean(menuState.optionsOpen);
-      if (this.optionsVisible !== shouldOpen) {
-        this.optionsVisible = shouldOpen;
-        this.optionsContainer.setVisible(shouldOpen);
-        if (shouldOpen) {
-          this.refreshOptionsList();
-        } else {
-          this.cancelBindingCapture();
-        }
-      }
     }
   }
 
@@ -407,8 +338,7 @@ export default class UIScene extends Phaser.Scene {
       this.optionsContainer.setVisible(open);
       if (open) {
         this.refreshOptionsList();
-      } else {
-        this.cancelBindingCapture();
+
       }
     }
   }
@@ -423,23 +353,7 @@ export default class UIScene extends Phaser.Scene {
     }
   }
 
-  setBindingState(bindings) {
-    if (!Array.isArray(bindings)) {
-      this.bindingState = [];
-      this.bindingLookup = new Map();
-      return;
-    }
-    this.bindingState = bindings;
-    this.bindingLookup = new Map();
-    bindings.forEach((entry) => {
-      if (entry && entry.action) {
-        this.bindingLookup.set(entry.action, entry);
-      }
-    });
-    if (this.optionsVisible) {
-      this.refreshOptionsList();
-    }
-  }
+
 
   updateHud(hudState) {
     const hpRatio = hudState.maxHp > 0 ? Phaser.Math.Clamp(hudState.hp / hudState.maxHp, 0, 1) : 0;
@@ -453,11 +367,7 @@ export default class UIScene extends Phaser.Scene {
   }
 
   updatePerformance(performance) {
-    const fps = performance && typeof performance.fps === "number" ? performance.fps : 0;
-    const frameTime = performance && typeof performance.frameTime === "number" ? performance.frameTime : 0;
-    const lines = [
-      `FPS ${fps.toFixed(0)}`,
-      `Frame ${frameTime.toFixed(1)} ms`,
+
       `Objects ${performance.objects}`,
       `Mobs ${performance.mobs}`,
       `Projectiles ${performance.projectiles}`
@@ -479,7 +389,7 @@ export default class UIScene extends Phaser.Scene {
       }
       visual.frame.setFillStyle(0x1f273a, 0.9);
       const name = slot.name || "--";
-      visual.label.setText(name.length > 9 ? `${name.slice(0, 8)}...` : name);
+
       visual.quantity.setText(slot.quantity > 1 ? `x${slot.quantity}` : "");
     });
   }
@@ -552,23 +462,12 @@ export default class UIScene extends Phaser.Scene {
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.navKeys.esc)) {
-      this.emitGameEvent("ui-close-panel", { panel: "inventory" });
+
     }
   }
 
   handleOptionsInput() {
-    if (Phaser.Input.Keyboard.JustDown(this.navKeys.esc)) {
-      if (this.bindingListenAction) {
-        this.cancelBindingCapture();
-      } else {
-        this.emitGameEvent("ui-close-panel", { panel: "options" });
-      }
-      return;
-    }
 
-    if (this.bindingListenAction) {
-      return;
-    }
 
     if (Phaser.Input.Keyboard.JustDown(this.navKeys.up)) {
       this.optionsSelectionIndex = Phaser.Math.Wrap(this.optionsSelectionIndex - 1, 0, this.optionsConfig.length);
@@ -578,36 +477,6 @@ export default class UIScene extends Phaser.Scene {
       this.refreshOptionsList();
     }
 
-    const config = this.optionsConfig[this.optionsSelectionIndex];
-    if (!config) {
-      return;
-    }
-
-    if (config.type === "range" || config.type === "choice") {
-      if (Phaser.Input.Keyboard.JustDown(this.navKeys.left)) {
-        this.modifyOption(-1);
-      } else if (Phaser.Input.Keyboard.JustDown(this.navKeys.right)) {
-        this.modifyOption(1);
-      }
-    } else if (config.type === "binding") {
-      if (
-        Phaser.Input.Keyboard.JustDown(this.navKeys.left) ||
-        Phaser.Input.Keyboard.JustDown(this.navKeys.right) ||
-        Phaser.Input.Keyboard.JustDown(this.navKeys.enter)
-      ) {
-        this.beginBindingCapture(config);
-      }
-    } else if (config.type === "action") {
-      if (
-        Phaser.Input.Keyboard.JustDown(this.navKeys.left) ||
-        Phaser.Input.Keyboard.JustDown(this.navKeys.right) ||
-        Phaser.Input.Keyboard.JustDown(this.navKeys.enter)
-      ) {
-        this.triggerOptionAction(config);
-      }
-    }
-  }
-
   assignQuickSlot(slotIndex) {
     if (!this.inventoryData.length) {
       return;
@@ -616,117 +485,17 @@ export default class UIScene extends Phaser.Scene {
     if (!item) {
       return;
     }
-    this.emitGameEvent("ui-assign-quick-slot", { slotIndex, itemId: item.id });
+
   }
 
   modifyOption(direction) {
     const config = this.optionsConfig[this.optionsSelectionIndex];
-    if (!config || (config.type !== "range" && config.type !== "choice")) {
-      return;
-    }
-    const state = this.optionsState || {};
-    const hasCurrent = Object.prototype.hasOwnProperty.call(state, config.key);
-    const current = hasCurrent ? state[config.key] : undefined;
-    let nextValue = current;
 
-    if (config.type === "range") {
-      const step = typeof config.step === "number" ? config.step : 0.1;
-      const baseValue = typeof current === "number" ? current : config.min;
-      nextValue = Phaser.Math.Clamp(baseValue + step * direction, config.min, config.max);
-    } else if (config.type === "choice") {
-      const list = Array.isArray(config.values) ? config.values : [];
-      if (list.length === 0) {
-        return;
-      }
-      const fallback = list[0];
-      const currentIndex = Math.max(0, list.indexOf(hasCurrent ? current : fallback));
       const nextIndex = Phaser.Math.Wrap(currentIndex + direction, 0, list.length);
       nextValue = list[nextIndex];
     }
 
-    this.optionsState = Object.assign({}, state, { [config.key]: nextValue });
-    this.refreshOptionsList();
-    this.emitGameEvent("ui-options-change", { [config.key]: nextValue });
-  }
 
-  beginBindingCapture(config) {
-    if (!config || !config.action) {
-      return;
-    }
-    this.bindingListenAction = config.action;
-    this.bindingListenLabel = config.label ? config.label : config.action;
-    if (this.optionsHintText && this.optionsHintBase) {
-      this.optionsHintText.setText(
-        `${this.bindingListenLabel} - \uc0c8 \ud0a4 \uc785\ub825 (ESC \ucde8\uc18c)`
-      );
-    }
-    this.refreshOptionsList();
-  }
-
-  cancelBindingCapture() {
-    if (!this.bindingListenAction) {
-      return;
-    }
-    this.bindingListenAction = null;
-    this.bindingListenLabel = "";
-    if (this.optionsHintText && this.optionsHintBase) {
-      this.optionsHintText.setText(this.optionsHintBase);
-    }
-    this.refreshOptionsList();
-  }
-
-  completeBindingCapture(keyCode) {
-    const action = this.bindingListenAction;
-    if (!action) {
-      return;
-    }
-    this.bindingListenAction = null;
-    this.bindingListenLabel = "";
-    if (this.optionsHintText && this.optionsHintBase) {
-      this.optionsHintText.setText(this.optionsHintBase);
-    }
-    this.emitGameEvent("ui-rebind-action", { action, keyCode });
-    this.refreshOptionsList();
-  }
-
-  triggerOptionAction(config) {
-    if (!config) {
-      return;
-    }
-    if (config.action === "reset-bindings") {
-      this.cancelBindingCapture();
-      this.emitGameEvent("ui-reset-bindings");
-    }
-  }
-
-  handleGlobalKeydown(event) {
-    if (!this.bindingListenAction) {
-      return;
-    }
-    if (event.repeat) {
-      return;
-    }
-    if (event.key === "Escape" || event.key === "Esc") {
-      this.cancelBindingCapture();
-      return;
-    }
-    const keyCode = typeof event.keyCode === "number" ? event.keyCode : event.which;
-    if (typeof keyCode !== "number" || !Number.isFinite(keyCode)) {
-      return;
-    }
-    if (typeof event.preventDefault === "function") {
-      event.preventDefault();
-    }
-    if (typeof event.stopPropagation === "function") {
-      event.stopPropagation();
-    }
-    this.completeBindingCapture(keyCode);
-  }
-
-  refreshInventoryList() {
-    if (!this.inventoryData.length) {
-      this.inventoryListText.setText(["(\uc544\uc774\ud15c \uc5c6\uc74c)"]);
-      this.inventoryDetailText.setText("\uc804\ub9ac\ud488\uc744 \ud68d\ub4dd\ud574 \uc778\ubca4\ud1a0\ub9ac\ub97c \ucc44\uc6b0\uc138\uc694.");
       return;
     }
 
@@ -734,30 +503,25 @@ export default class UIScene extends Phaser.Scene {
 
     const quickSlotMap = new Map();
     this.quickSlotData.forEach((slot) => {
-      if (slot && slot.itemId) {
+
         quickSlotMap.set(slot.itemId, slot.index + 1);
       }
     });
 
     const lines = this.inventoryData.map((item, index) => {
-      const selector = index === this.inventorySelectionIndex ? "\u25b6" : " ";
+
       const slotTag = quickSlotMap.has(item.id) ? ` [${quickSlotMap.get(item.id)}]` : "";
       return `${selector} ${item.name}${slotTag}  x${item.quantity}`;
     });
 
     this.inventoryListText.setText(lines);
     const selected = this.inventoryData[this.inventorySelectionIndex];
-    const detailText = selected && selected.description ? selected.description : "\uc0c1\uc138 \uc124\uba85\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.";
-    this.inventoryDetailText.setText(detailText);
+
   }
 
   refreshOptionsList() {
     const lines = this.optionsConfig.map((config, index) => {
-      const selector = index === this.optionsSelectionIndex ? "\u25b6" : " ";
-      if (config.type === "action") {
-        const suffix = config.action === "reset-bindings" ? " (Enter)" : "";
-        return `${selector} ${config.label}${suffix}`;
-      }
+
       const value = this.formatOptionValue(config);
       return `${selector} ${config.label}: ${value}`;
     });
@@ -765,55 +529,7 @@ export default class UIScene extends Phaser.Scene {
   }
 
   formatOptionValue(config) {
-    if (config.type === "binding") {
-      if (this.bindingListenAction === config.action) {
-        return "[\uc785\ub825 \ub300\uae30]";
-      }
-      return this.formatBindingValue(config.action);
-    }
-    if (config.type === "action") {
-      return "";
-    }
-    const state = this.optionsState || {};
-    const hasValue = Object.prototype.hasOwnProperty.call(state, config.key);
-    const value = hasValue ? state[config.key] : undefined;
-    if (config.type === "range") {
-      if (config.key === "resolutionScale") {
-        const scale = typeof value === "number" ? value : 1;
-        return `${Math.round(scale * 100)}%`;
-      }
-      const numeric = typeof value === "number" ? value : 0;
-      return `${Math.round(numeric * 100)}%`;
-    }
-    if (config.type === "choice") {
-      const list = Array.isArray(config.values) ? config.values : [];
-      if (hasValue) {
-        return value;
-      }
-      return list.length > 0 ? list[0] : "";
-    }
-    if (hasValue && value != null) {
-      return value;
-    }
-    const defaults = Array.isArray(config.values) ? config.values : [];
-    return defaults.length > 0 ? defaults[0] : "";
-  }
 
-  formatBindingValue(action) {
-    if (!action) {
-      return "--";
-    }
-    const entry = this.bindingLookup.get(action);
-    if (!entry) {
-      return "--";
-    }
-    if (Array.isArray(entry.labels) && entry.labels.length) {
-      return entry.labels.join(" / ");
-    }
-    if (Array.isArray(entry.codes) && entry.codes.length) {
-      return entry.codes.map((code) => String(code)).join(" / ");
-    }
-    return "--";
   }
 
   createOptionsConfig() {
@@ -822,19 +538,7 @@ export default class UIScene extends Phaser.Scene {
       { key: "sfxVolume", label: "SFX Volume", type: "range", min: 0, max: 1, step: 0.1 },
       { key: "bgmVolume", label: "BGM Volume", type: "range", min: 0, max: 1, step: 0.1 },
       { key: "resolutionScale", label: "Resolution Scale", type: "range", min: 0.7, max: 1.1, step: 0.05 },
-      { key: "graphicsQuality", label: "Graphics Quality", type: "choice", values: ["High", "Performance"] },
-      { key: "bind.moveLeft", label: "Move Left", type: "binding", action: INPUT_KEYS.LEFT },
-      { key: "bind.moveRight", label: "Move Right", type: "binding", action: INPUT_KEYS.RIGHT },
-      { key: "bind.moveUp", label: "Move Up", type: "binding", action: INPUT_KEYS.UP },
-      { key: "bind.moveDown", label: "Move Down", type: "binding", action: INPUT_KEYS.DOWN },
-      { key: "bind.jump", label: "Jump", type: "binding", action: INPUT_KEYS.JUMP },
-      { key: "bind.dash", label: "Dash", type: "binding", action: INPUT_KEYS.DASH },
-      { key: "bind.attackPrimary", label: "Primary Attack", type: "binding", action: INPUT_KEYS.ATTACK_PRIMARY },
-      { key: "bind.attackSecondary", label: "Secondary Attack", type: "binding", action: INPUT_KEYS.ATTACK_SECONDARY },
-      { key: "bind.interact", label: "Interact", type: "binding", action: INPUT_KEYS.INTERACT },
-      { key: "bind.inventory", label: "Inventory Menu", type: "binding", action: INPUT_KEYS.INVENTORY },
-      { key: "bind.options", label: "Options Menu", type: "binding", action: INPUT_KEYS.OPTIONS },
-      { key: "resetBindings", label: "Reset Key Bindings", type: "action", action: "reset-bindings" }
+
     ];
   }
 
@@ -871,15 +575,12 @@ export default class UIScene extends Phaser.Scene {
   }
 
   shutdown() {
-    if (this.gameScene && this.gameScene.events) {
+
       this.gameScene.events.off("ui-state", this.handleStateUpdate, this);
       this.gameScene.events.off("ui-panel", this.handlePanelToggle, this);
       this.gameScene.events.off("ui-menu-state", this.handleMenuState, this);
     }
-    this.cancelBindingCapture();
-    if (this.input && this.input.keyboard) {
-      this.input.keyboard.off("keydown", this.handleGlobalKeydown, this);
-    }
+
     this.gameScene = null;
   }
 }
