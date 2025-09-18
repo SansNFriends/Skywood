@@ -42,6 +42,8 @@ export default class PerfMeter {
       lines.push(`OBJ ${objects}`);
       lines.push(`MOB ${mobsVisible}/${mobsActive}`);
       lines.push(`PRJ ${projectiles}`);
+      const lootActive = snapshot.loot ?? 0;
+      lines.push(`LUT ${lootActive}`);
       const projectilePool = snapshot.pools?.projectile;
       if (projectilePool) {
         lines.push(
@@ -52,6 +54,12 @@ export default class PerfMeter {
       if (textPool) {
         lines.push(
           `TP ${Math.max(0, textPool.live ?? 0)}/${Math.max(0, textPool.free ?? 0)}`
+        );
+      }
+      const lootPool = snapshot.pools?.loot;
+      if (lootPool) {
+        lines.push(
+          `LP ${Math.max(0, lootPool.live ?? 0)}/${Math.max(0, lootPool.free ?? 0)}`
         );
       }
     } else {

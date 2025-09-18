@@ -6,8 +6,15 @@ import Player from "../entities/Player.js";
 import Pool from "../systems/Pool.js";
 import AudioManager from "../systems/AudioManager.js";
 import Projectile from "../entities/Projectile.js";
+import LootDrop from "../entities/LootDrop.js";
 import Spawner from "../systems/Spawner.js";
 import SaveManager from "../systems/SaveManager.js";
+import {
+  createDefaultInventory,
+  createDefaultQuickSlots,
+  ensureItemIconTexture,
+  getItemDefinition
+} from "../data/ItemCatalog.js";
 
 const CAMERA_DEADZONE_X = 0.4;
 const CAMERA_DEADZONE_Y = 0.3;
@@ -18,6 +25,13 @@ const AUTO_SAVE_INTERVAL = 15000;
 const PROJECTILE_CULL_PADDING = 220;
 
 const ATTACK_COOLDOWN_MS = 300;
+
+const QUICK_SLOT_INPUTS = [
+  { action: INPUT_KEYS.QUICK_SLOT_1, index: 0 },
+  { action: INPUT_KEYS.QUICK_SLOT_2, index: 1 },
+  { action: INPUT_KEYS.QUICK_SLOT_3, index: 2 },
+  { action: INPUT_KEYS.QUICK_SLOT_4, index: 3 }
+];
 
 
 export default class GameScene extends Phaser.Scene {
@@ -39,6 +53,8 @@ export default class GameScene extends Phaser.Scene {
 
     this.damageTextPool = null;
     this.lootPool = null;
+    this.lootDrops = new Set();
+    this.focusedLootDrop = null;
     this.mobSpawner = null;
 
     this.saveManager = null;
@@ -52,6 +68,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.inventory = [];
     this.quickSlots = [];
+    this.quickSlotRuntime = [];
     this.optionsState = {};
     this.bindingsDirty = false;
     this.inventoryDirty = false;
@@ -67,6 +84,10 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
+    this.resetQueued = false;
+    this.lootDrops.clear();
+    this.focusedLootDrop = null;
+
     this.cameras.main.setBackgroundColor("#2a2f3a");
 
     this.saveManager = new SaveManager();
@@ -150,18 +171,15 @@ export default class GameScene extends Phaser.Scene {
 
     this.lootPool = new Pool(
       () => {
-        const rect = this.add.rectangle(0, 0, 12, 12, 0xffd166);
-        rect.setDepth(70);
-        rect.setActive(false);
-        rect.setVisible(false);
-        return rect;
+        const drop = new LootDrop(this, -1000, -1000);
+        drop.resetState();
+        return drop;
       },
-      (rect) => {
-        this.tweens.killTweensOf(rect);
-        rect.setAlpha(1);
-        rect.setScale(1);
-        rect.setActive(false);
-        rect.setVisible(false);
+      (drop) => {
+        if (!drop) {
+          return;
+        }
+        drop.resetState();
       }
     );
   }
@@ -298,53 +316,18 @@ export default class GameScene extends Phaser.Scene {
   initializeGameData() {
     const restore = this.restoredData || {};
 
-    const defaultInventory = [
-      {
-        id: "skyroot_tonic",
-        name: "Skyroot Tonic",
-        type: "consumable",
-        quantity: 3,
-        description: "Restores 40 HP over a short duration."
-      },
-      {
-        id: "azure_focus",
-        name: "Azure Focus",
-        type: "consumable",
-        quantity: 2,
-        description: "Instantly revitalises 30 MP."
-      },
-      {
-        id: "ember_shard",
-        name: "Ember Shard",
-        type: "material",
-        quantity: 5,
-        description: "Warm crystalline shard used for crafting combustion cores."
-      },
-      {
-        id: "wingburst_scroll",
-        name: "Wingburst Scroll",
-        type: "skill",
-        quantity: 1,
-        description: "Unlocks a temporary mid-air burst dash when consumed."
-      }
-    ];
-
     const savedInventory = Array.isArray(restore.inventory) ? restore.inventory : null;
-    const sourceInventory = savedInventory && savedInventory.length ? savedInventory : defaultInventory;
-    this.inventory = sourceInventory.map((item) => ({
-      id: item.id,
-      name: item.name,
-      type: item.type || "consumable",
-      quantity: Number.isFinite(item.quantity) ? Math.max(0, Math.round(item.quantity)) : 1,
-      description: item.description || ""
-    }));
+    const usingSavedInventory = Boolean(savedInventory && savedInventory.length);
+    const sourceInventory = usingSavedInventory ? savedInventory : createDefaultInventory();
+    this.inventory = sourceInventory
+      .map((item, index) => this.normalizeInventoryItem(item, index))
+      .filter((entry) => entry !== null);
 
-    const defaultQuickSlots = [
-      { index: 0, itemId: "skyroot_tonic" },
-      { index: 1, itemId: "azure_focus" },
-      { index: 2, itemId: null },
-      { index: 3, itemId: "wingburst_scroll" }
-    ];
+    if (!usingSavedInventory) {
+      this.sortInventoryEntries();
+    }
+
+    const defaultQuickSlots = createDefaultQuickSlots();
     this.quickSlots = defaultQuickSlots.map((slot) => ({ ...slot }));
     if (Array.isArray(restore.quickSlots)) {
       restore.quickSlots.forEach((slot) => {
@@ -365,6 +348,7 @@ export default class GameScene extends Phaser.Scene {
       index: slot.index,
       itemId: slot.itemId && inventoryIds.has(slot.itemId) ? slot.itemId : null
     }));
+    this.rebuildQuickSlotRuntime(true);
 
     const defaultOptions = {
       masterVolume: 0.8,
@@ -388,6 +372,138 @@ export default class GameScene extends Phaser.Scene {
       this.inputManager.applyBindingSnapshot(restore.bindings);
       this.bindingsDirty = true;
     }
+  }
+
+  normalizeInventoryItem(raw) {
+    if (!raw || typeof raw.id !== "string") {
+      return null;
+    }
+    const def = getItemDefinition(raw.id);
+    const quantity = Number.isFinite(raw.quantity) ? Math.max(0, Math.round(raw.quantity)) : def?.defaultQuantity ?? 0;
+    const cooldownMs = Number.isFinite(raw.cooldownMs)
+      ? Math.max(0, Math.round(raw.cooldownMs))
+      : def?.cooldownMs ?? 0;
+    const usable = raw.usable !== undefined ? Boolean(raw.usable) : def ? def.usable !== false : true;
+    return {
+      id: raw.id,
+      name: raw.name || def?.name || raw.id,
+      type: raw.type || def?.type || "consumable",
+      quantity,
+      description: raw.description || def?.description || "",
+      iconKey: raw.iconKey || def?.iconKey || null,
+      cooldownMs,
+      usable
+    };
+  }
+
+  sortInventoryEntries() {
+    if (!Array.isArray(this.inventory)) {
+      return;
+    }
+    this.inventory.sort((a, b) => {
+      const defA = getItemDefinition(a.id);
+      const defB = getItemDefinition(b.id);
+      const orderA = defA?.order ?? Number.MAX_SAFE_INTEGER;
+      const orderB = defB?.order ?? Number.MAX_SAFE_INTEGER;
+      if (orderA === orderB) {
+        const nameA = a?.name || defA?.name || a.id;
+        const nameB = b?.name || defB?.name || b.id;
+        return nameA.localeCompare(nameB);
+      }
+      return orderA - orderB;
+    });
+  }
+
+  grantInventoryItem(itemId, quantity = 1) {
+    if (!itemId || !Number.isFinite(quantity) || quantity <= 0) {
+      return false;
+    }
+
+    const normalizedQuantity = Math.max(1, Math.round(quantity));
+    const definition = getItemDefinition(itemId) || null;
+    if (definition) {
+      ensureItemIconTexture(this, definition);
+    }
+
+    let entry = this.inventory.find((item) => item.id === itemId);
+    if (entry) {
+      entry.quantity = Math.max(0, Math.round(entry.quantity + normalizedQuantity));
+    } else {
+      const normalized = this.normalizeInventoryItem({ id: itemId, quantity: normalizedQuantity });
+      if (!normalized) {
+        return false;
+      }
+      normalized.quantity = Math.max(1, Math.round(normalized.quantity || normalizedQuantity));
+      if (definition?.iconKey && !normalized.iconKey) {
+        normalized.iconKey = definition.iconKey;
+      }
+      this.inventory.push(normalized);
+      this.sortInventoryEntries();
+      entry = normalized;
+    }
+
+    const affectsQuickSlot = this.quickSlots?.some((slot) => slot?.itemId === itemId);
+    if (affectsQuickSlot) {
+      this.quickSlotsDirty = true;
+    }
+
+    this.inventoryDirty = true;
+    this.syncUI(true);
+    this.markProgressDirty("loot-pickup");
+    return Boolean(entry);
+  }
+
+  createQuickSlotStatus(itemId = null) {
+    return {
+      itemId: itemId ?? null,
+      cooldownRemaining: 0,
+      cooldownTotal: 0
+    };
+  }
+
+  rebuildQuickSlotRuntime(forceReset = false) {
+    const next = [];
+    for (let i = 0; i < this.quickSlots.length; i += 1) {
+      const slot = this.quickSlots[i];
+      const previous = this.quickSlotRuntime?.[i];
+      if (!forceReset && previous && previous.itemId === slot.itemId) {
+        next.push({
+          itemId: previous.itemId ?? slot.itemId ?? null,
+          cooldownRemaining: Math.max(0, previous.cooldownRemaining || 0),
+          cooldownTotal: Math.max(0, previous.cooldownTotal || 0)
+        });
+      } else {
+        next.push(this.createQuickSlotStatus(slot.itemId));
+      }
+    }
+    this.quickSlotRuntime = next;
+  }
+
+  resetQuickSlotStatus(slotIndex, itemId = null) {
+    if (slotIndex < 0 || slotIndex >= this.quickSlots.length) {
+      return;
+    }
+    if (!this.quickSlotRuntime) {
+      this.quickSlotRuntime = [];
+    }
+    this.quickSlotRuntime[slotIndex] = this.createQuickSlotStatus(itemId);
+  }
+
+  setQuickSlotCooldown(slotIndex, itemId, cooldownMs) {
+    if (slotIndex < 0 || slotIndex >= this.quickSlots.length) {
+      return;
+    }
+    const clamped = Math.max(0, Math.round(cooldownMs || 0));
+    if (!this.quickSlotRuntime) {
+      this.quickSlotRuntime = [];
+    }
+    if (!this.quickSlotRuntime[slotIndex]) {
+      this.quickSlotRuntime[slotIndex] = this.createQuickSlotStatus(itemId);
+    }
+    const status = this.quickSlotRuntime[slotIndex];
+    status.itemId = itemId ?? status.itemId ?? null;
+    status.cooldownRemaining = clamped;
+    status.cooldownTotal = clamped;
   }
 
   initializeUIBridge() {
@@ -416,16 +532,20 @@ export default class GameScene extends Phaser.Scene {
     this.lastFrameTime = delta;
     this.updateParallax();
     this.handleUtilityInput();
+    this.updateQuickSlotCooldowns(delta);
     this.primaryAttackCooldown = Math.max(0, this.primaryAttackCooldown - delta);
     this.secondaryAttackCooldown = Math.max(0, this.secondaryAttackCooldown - delta);
 
     if (!this.menuOpen) {
+      this.handleQuickSlotInput();
       this.handleCombatInput();
     }
 
     this.mobSpawner?.update(time, delta);
     this.updateProjectiles();
     this.handleMobInteractions();
+    this.pruneLootDrops();
+    this.handleLootInteractions();
     this.updateSaveHeartbeat(delta);
     this.updateUIHeartbeat(delta);
   }
@@ -457,6 +577,166 @@ export default class GameScene extends Phaser.Scene {
       this.events.emit("ui-panel", { panel: "options", open });
       this.handleMenuStateChanged();
       this.syncUI(true);
+    }
+  }
+
+  handleQuickSlotInput() {
+    if (!this.inputManager || !this.player) {
+      return;
+    }
+    for (let i = 0; i < QUICK_SLOT_INPUTS.length; i += 1) {
+      const mapping = QUICK_SLOT_INPUTS[i];
+      if (!mapping) {
+        continue;
+      }
+      if (this.inputManager.wasJustPressed(mapping.action)) {
+        this.activateQuickSlot(mapping.index);
+      }
+    }
+  }
+
+  updateQuickSlotCooldowns(delta) {
+    if (!Array.isArray(this.quickSlotRuntime) || !this.quickSlotRuntime.length) {
+      return;
+    }
+    let changed = false;
+    this.quickSlotRuntime.forEach((status) => {
+      if (!status || status.cooldownRemaining <= 0) {
+        return;
+      }
+      const before = status.cooldownRemaining;
+      status.cooldownRemaining = Math.max(0, before - delta);
+      if (status.cooldownRemaining !== before) {
+        changed = true;
+      }
+    });
+    if (changed) {
+      this.quickSlotsDirty = true;
+    }
+  }
+
+  activateQuickSlot(slotIndex) {
+    if (typeof slotIndex !== "number" || slotIndex < 0 || slotIndex >= this.quickSlots.length) {
+      return false;
+    }
+    const slot = this.quickSlots[slotIndex];
+    if (!slot || !slot.itemId) {
+      return false;
+    }
+    const status = this.quickSlotRuntime?.[slotIndex];
+    if (status && status.cooldownRemaining > 0) {
+      return false;
+    }
+
+    const item = this.inventory.find((entry) => entry.id === slot.itemId);
+    if (!item || item.quantity <= 0) {
+      this.quickSlots[slotIndex] = { index: slotIndex, itemId: null };
+      this.resetQuickSlotStatus(slotIndex, null);
+      this.quickSlotsDirty = true;
+      this.syncUI(true);
+      return false;
+    }
+
+    if (item.usable === false) {
+      return false;
+    }
+
+    const definition = getItemDefinition(item.id);
+    const outcome = this.executeQuickSlotEffect(slotIndex, item, definition);
+    if (!outcome || outcome.consumed !== true) {
+      return false;
+    }
+
+    const quantitySpent = Math.max(1, outcome.quantitySpent || 1);
+    item.quantity = Math.max(0, item.quantity - quantitySpent);
+
+    const cooldownMs = outcome.cooldownMs ?? definition?.cooldownMs ?? item.cooldownMs ?? 0;
+
+    if (item.quantity <= 0) {
+      this.quickSlots[slotIndex] = { index: slotIndex, itemId: null };
+      this.resetQuickSlotStatus(slotIndex, null);
+    } else if (cooldownMs > 0) {
+      this.setQuickSlotCooldown(slotIndex, item.id, cooldownMs);
+    } else {
+      this.resetQuickSlotStatus(slotIndex, item.id);
+    }
+
+    this.inventoryDirty = true;
+    this.quickSlotsDirty = true;
+    this.markProgressDirty(`quickslot-${item.id}`);
+    this.syncUI(true);
+    return true;
+  }
+
+  executeQuickSlotEffect(slotIndex, item, definition) {
+    if (!item) {
+      return { consumed: false };
+    }
+    const effect = definition?.effect;
+    if (!effect) {
+      return { consumed: true, quantitySpent: 1, cooldownMs: definition?.cooldownMs ?? item.cooldownMs ?? 0 };
+    }
+    switch (effect.type) {
+      case "heal-over-time": {
+        this.applyHealOverTime(effect.total ?? 0, effect.durationMs ?? 0, effect.ticks ?? 4);
+        return { consumed: true, quantitySpent: 1, cooldownMs: definition?.cooldownMs ?? item.cooldownMs ?? 0 };
+      }
+      case "restore-mp": {
+        this.applyManaRestore(effect.amount ?? 0);
+        return { consumed: true, quantitySpent: 1, cooldownMs: definition?.cooldownMs ?? item.cooldownMs ?? 0 };
+      }
+      case "wingburst": {
+        this.applyWingburst(effect.durationMs ?? 8000, effect.charges ?? 1);
+        return { consumed: true, quantitySpent: 1, cooldownMs: definition?.cooldownMs ?? item.cooldownMs ?? 0 };
+      }
+      default:
+        return { consumed: true, quantitySpent: 1, cooldownMs: definition?.cooldownMs ?? item.cooldownMs ?? 0 };
+    }
+  }
+
+  applyHealOverTime(totalAmount, durationMs, ticks) {
+    if (!this.player) {
+      return;
+    }
+    const total = Math.max(0, totalAmount);
+    const tickCount = Math.max(1, Math.round(ticks));
+    const interval = durationMs > 0 ? durationMs / tickCount : 0;
+    const healPerTick = total / tickCount;
+
+    for (let i = 0; i < tickCount; i += 1) {
+      const delay = Math.round(interval * i);
+      this.time.delayedCall(delay, () => {
+        if (!this.player) {
+          return;
+        }
+        const before = this.player.stats.hp;
+        this.player.stats.heal(healPerTick);
+        const healed = Math.round(this.player.stats.hp - before);
+        if (healed > 0) {
+          this.spawnDamageNumber(this.player.x, this.player.y - 40, `+${healed}`, "#9bffb0");
+        }
+      });
+    }
+  }
+
+  applyManaRestore(amount) {
+    if (!this.player) {
+      return;
+    }
+    const restored = this.player.stats.restoreMp(amount);
+    if (restored > 0) {
+      const gained = Math.round(restored);
+      this.spawnDamageNumber(this.player.x, this.player.y - 52, `+${gained} MP`, "#84c1ff");
+    }
+  }
+
+  applyWingburst(durationMs, charges) {
+    if (!this.player) {
+      return;
+    }
+    this.player.grantWingburst(durationMs, charges);
+    if (durationMs > 0) {
+      this.spawnDamageNumber(this.player.x, this.player.y - 72, "Wingburst!", "#ffe17a");
     }
   }
 
@@ -499,6 +779,7 @@ export default class GameScene extends Phaser.Scene {
     }
     if (!itemId) {
       this.quickSlots[slotIndex] = { index: slotIndex, itemId: null };
+      this.resetQuickSlotStatus(slotIndex, null);
       this.quickSlotsDirty = true;
       this.markProgressDirty("quickslot");
       this.syncUI(true);
@@ -508,7 +789,11 @@ export default class GameScene extends Phaser.Scene {
     if (!item) {
       return;
     }
+    if (item.usable === false) {
+      return;
+    }
     this.quickSlots[slotIndex] = { index: slotIndex, itemId };
+    this.resetQuickSlotStatus(slotIndex, itemId);
     this.quickSlotsDirty = true;
     this.markProgressDirty("quickslot");
     this.syncUI(true);
@@ -753,13 +1038,20 @@ export default class GameScene extends Phaser.Scene {
   }
 
   collectQuickSlotState() {
-    return this.quickSlots.map((slot) => {
+    return this.quickSlots.map((slot, index) => {
       const item = slot.itemId ? this.inventory.find((entry) => entry.id === slot.itemId) : null;
+      const definition = slot.itemId ? getItemDefinition(slot.itemId) : null;
+      const runtime = this.quickSlotRuntime?.[index] || null;
+      const cooldownTotal = runtime?.cooldownTotal ?? item?.cooldownMs ?? definition?.cooldownMs ?? 0;
       return {
         index: slot.index,
         itemId: slot.itemId,
         name: item?.name ?? null,
-        quantity: item?.quantity ?? 0
+        quantity: item?.quantity ?? 0,
+        iconKey: item?.iconKey ?? definition?.iconKey ?? null,
+        cooldownRemaining: Math.max(0, runtime?.cooldownRemaining ?? 0),
+        cooldownTotal: Math.max(0, cooldownTotal),
+        usable: item ? item.usable !== false : definition ? definition.usable !== false : false
       };
     });
   }
@@ -818,6 +1110,14 @@ export default class GameScene extends Phaser.Scene {
     const mobsActive = this.mobSpawner ? this.mobSpawner.getManagedCount() : 0;
     const mobsVisible = this.mobSpawner ? this.mobSpawner.getVisibleCount() : 0;
     const projectileCount = this.countActiveProjectiles();
+    let lootActive = 0;
+    if (this.lootDrops && this.lootDrops.size) {
+      this.lootDrops.forEach((drop) => {
+        if (drop?.active) {
+          lootActive += 1;
+        }
+      });
+    }
 
     return {
       fps: this.game.loop.actualFps || 0,
@@ -826,12 +1126,16 @@ export default class GameScene extends Phaser.Scene {
       mobsActive,
       mobsVisible,
       projectiles: projectileCount,
+      loot: lootActive,
       pools: {
         projectile: this.projectilePool
           ? { live: this.projectilePool.getLiveCount(), free: this.projectilePool.getFreeCount() }
           : null,
         damageText: this.damageTextPool
           ? { live: this.damageTextPool.getLiveCount(), free: this.damageTextPool.getFreeCount() }
+          : null,
+        loot: this.lootPool
+          ? { live: this.lootPool.getLiveCount(), free: this.lootPool.getFreeCount() }
           : null
       }
     };
@@ -998,6 +1302,120 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
+  pruneLootDrops() {
+    if (!this.lootDrops || this.lootDrops.size === 0) {
+      return;
+    }
+    const limitY = this.map ? this.map.heightInPixels + 160 : Number.POSITIVE_INFINITY;
+    const pending = [];
+    this.lootDrops.forEach((drop) => {
+      if (!drop || !drop.active || !drop.visible) {
+        pending.push(drop);
+        return;
+      }
+      if (drop.y > limitY) {
+        pending.push(drop);
+      }
+    });
+    pending.forEach((drop) => this.releaseLootDrop(drop));
+  }
+
+  handleLootInteractions() {
+    if (!this.player || !this.inputManager) {
+      return;
+    }
+    if (!this.lootDrops || this.lootDrops.size === 0) {
+      if (this.focusedLootDrop) {
+        this.focusedLootDrop.setHighlight?.(false);
+        this.focusedLootDrop = null;
+      }
+      return;
+    }
+
+    let closest = null;
+    let closestDist = Infinity;
+    this.lootDrops.forEach((drop) => {
+      if (!drop || !drop.active) {
+        return;
+      }
+      const radius = drop.pickupRadius ?? 72;
+      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, drop.x, drop.y);
+      if (dist <= radius && dist < closestDist) {
+        closest = drop;
+        closestDist = dist;
+      }
+    });
+
+    if (this.focusedLootDrop && this.focusedLootDrop !== closest) {
+      this.focusedLootDrop.setHighlight?.(false);
+      this.focusedLootDrop = null;
+    }
+
+    if (!closest) {
+      return;
+    }
+
+    if (closest !== this.focusedLootDrop) {
+      closest.setHighlight?.(true);
+      this.focusedLootDrop = closest;
+    }
+
+    if (this.menuOpen) {
+      return;
+    }
+
+    if (this.inputManager.wasJustPressed(INPUT_KEYS.INTERACT)) {
+      this.collectLootDrop(closest);
+    }
+  }
+
+  collectLootDrop(drop) {
+    if (!drop || !drop.active) {
+      return false;
+    }
+    const itemId = drop.itemId || null;
+    const quantity = Math.max(1, Math.round(drop.quantity || 1));
+    const px = drop.x;
+    const py = drop.y;
+    const definition = itemId ? getItemDefinition(itemId) : null;
+
+    this.releaseLootDrop(drop);
+
+    if (!itemId) {
+      return false;
+    }
+
+    const granted = this.grantInventoryItem(itemId, quantity);
+    if (granted) {
+      const label = definition?.name ? `+${quantity} ${definition.name}` : `+${quantity}`;
+      this.spawnDamageNumber(px, py - 20, label, "#8fe8a8");
+      return true;
+    }
+    return false;
+  }
+
+  releaseLootDrop(drop) {
+    if (!drop) {
+      return;
+    }
+    if (drop.setHighlight) {
+      drop.setHighlight(false);
+    }
+    if (this.focusedLootDrop === drop) {
+      this.focusedLootDrop = null;
+    }
+    if (this.lootDrops) {
+      this.lootDrops.delete(drop);
+    }
+    if (this.lootPool) {
+      this.lootPool.release(drop);
+    } else if (drop.resetState) {
+      drop.resetState();
+    } else if (drop.destroy) {
+      drop.destroy();
+    }
+  }
+
   updateParallax() {
     if (!this.parallaxLayers.length) {
       return;
@@ -1042,23 +1460,19 @@ export default class GameScene extends Phaser.Scene {
     if (!this.lootPool) {
       return;
     }
-    const loot = this.lootPool.obtain();
-    loot.setPosition(x, y);
-    loot.setAlpha(1);
-    loot.setScale(1);
-    loot.setActive(true);
-    loot.setVisible(true);
-    this.tweens.killTweensOf(loot);
-    this.tweens.add({
-      targets: loot,
-      y: y + 24,
-      alpha: 0,
-      duration: 600,
-      ease: "Sine.In",
-      onComplete: () => {
-        this.lootPool.release(loot);
-      }
-    });
+    const dropInfo = this.rollMobLoot();
+    if (!dropInfo || !dropInfo.itemId) {
+      return;
+    }
+    const drop = this.lootPool.obtain();
+    drop.spawn(dropInfo.itemId, dropInfo.quantity ?? 1, x, y);
+    this.lootDrops.add(drop);
+  }
+
+  rollMobLoot() {
+    const itemId = "ember_shard";
+    const quantity = Phaser.Math.FloatBetween(0, 1) > 0.85 ? 2 : 1;
+    return { itemId, quantity };
   }
 
   shutdown() {
@@ -1080,10 +1494,14 @@ export default class GameScene extends Phaser.Scene {
       this.damageTextPool = null;
     }
     if (this.lootPool) {
-      this.lootPool.forEachLive((rect) => rect.destroy());
-      this.lootPool.free.forEach((rect) => rect.destroy());
+      this.lootPool.forEachLive((drop) => drop.destroy());
+      this.lootPool.free.forEach((drop) => drop.destroy());
       this.lootPool = null;
     }
+    if (this.lootDrops) {
+      this.lootDrops.clear();
+    }
+    this.focusedLootDrop = null;
     if (this.scene.isActive && this.scene.isActive("UIScene")) {
       this.scene.stop("UIScene");
     }

@@ -11,7 +11,11 @@ export const INPUT_KEYS = Object.freeze({
   ATTACK_SECONDARY: "attack-secondary",
   INTERACT: "interact",
   INVENTORY: "inventory",
-  OPTIONS: "options"
+  OPTIONS: "options",
+  QUICK_SLOT_1: "quick-slot-1",
+  QUICK_SLOT_2: "quick-slot-2",
+  QUICK_SLOT_3: "quick-slot-3",
+  QUICK_SLOT_4: "quick-slot-4"
 });
 
 const DEFAULT_KEYMAP = {
@@ -25,7 +29,11 @@ const DEFAULT_KEYMAP = {
   [INPUT_KEYS.ATTACK_SECONDARY]: ["K"],
   [INPUT_KEYS.INTERACT]: ["E"],
   [INPUT_KEYS.INVENTORY]: ["I"],
-  [INPUT_KEYS.OPTIONS]: ["O"]
+  [INPUT_KEYS.OPTIONS]: ["O"],
+  [INPUT_KEYS.QUICK_SLOT_1]: ["ONE"],
+  [INPUT_KEYS.QUICK_SLOT_2]: ["TWO"],
+  [INPUT_KEYS.QUICK_SLOT_3]: ["THREE"],
+  [INPUT_KEYS.QUICK_SLOT_4]: ["FOUR"]
 };
 
 const keyStateCache = new Map();
