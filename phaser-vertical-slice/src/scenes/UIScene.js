@@ -3,6 +3,7 @@ import { INPUT_KEYS } from "../systems/InputManager.js";
 import { ITEM_CATALOG, ensureAllItemIcons } from "../data/ItemCatalog.js";
 import debugToggle from "../ui/DebugToggle.js";
 
+
 const HUD_DEPTH = 2000;
 const QUICK_SLOT_COUNT = 4;
 const MINI_MAP_SIZE = { width: 176, height: 112 };

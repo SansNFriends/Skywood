@@ -18,6 +18,16 @@ import {
   getItemDefinition
 } from "../data/ItemCatalog.js";
 
+import debugToggle from "../ui/DebugToggle.js";
+import { GFX, QUALITY_LEVELS, applyGraphicsPreset, updateCurrentZoom } from "../config/graphics.js";
+import {
+  createDefaultInventory,
+  createDefaultQuickSlots,
+  ensureItemIconTexture,
+  getItemDefinition
+} from "../data/ItemCatalog.js";
+
+
 const CAMERA_DEADZONE_X = 0.4;
 const CAMERA_DEADZONE_Y = 0.3;
 const UI_SYNC_INTERVAL = 120;
@@ -337,7 +347,6 @@ export default class GameScene extends Phaser.Scene {
     this.inventory = sourceInventory
       .map((item, index) => this.normalizeInventoryItem(item, index))
       .filter((entry) => entry !== null);
-
     if (!usingSavedInventory) {
       this.sortInventoryEntries();
     }
@@ -903,7 +912,9 @@ export default class GameScene extends Phaser.Scene {
     if (!camera) {
       return;
     }
+
     const baseZoom = typeof GFX.zoom === "number" ? GFX.zoom : 1;
+
     const scale = Phaser.Math.Clamp(this.optionsState?.resolutionScale ?? 1, 0.7, 1.2);
     const snappedZoom = Phaser.Math.Clamp(Math.round(baseZoom * scale), 1, 4);
     camera.setZoom(snappedZoom);
