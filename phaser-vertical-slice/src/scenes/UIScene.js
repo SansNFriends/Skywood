@@ -1310,7 +1310,7 @@ export default class UIScene extends Phaser.Scene {
       { key: "sfxVolume", label: "SFX Volume", type: "range", min: 0, max: 1, step: 0.1 },
       { key: "bgmVolume", label: "BGM Volume", type: "range", min: 0, max: 1, step: 0.1 },
       { key: "resolutionScale", label: "Resolution Scale", type: "range", min: 0.7, max: 1.1, step: 0.05 },
-      { key: "graphicsQuality", label: "Graphics Quality", type: "choice", values: ["High", "Performance"] },
+      { key: "graphicsQuality", label: "Graphics Quality", type: "choice", values: ["High", "Balanced", "Performance"] },
       { key: "bind.moveLeft", label: "Move Left", type: "binding", action: INPUT_KEYS.LEFT },
       { key: "bind.moveRight", label: "Move Right", type: "binding", action: INPUT_KEYS.RIGHT },
       { key: "bind.moveUp", label: "Move Up", type: "binding", action: INPUT_KEYS.UP },

@@ -9,6 +9,14 @@ import Projectile from "../entities/Projectile.js";
 import LootDrop from "../entities/LootDrop.js";
 import Spawner from "../systems/Spawner.js";
 import SaveManager from "../systems/SaveManager.js";
+import debugToggle from "../ui/DebugToggle.js";
+import { GFX, QUALITY_LEVELS, applyGraphicsPreset, updateCurrentZoom } from "../config/graphics.js";
+import {
+  createDefaultInventory,
+  createDefaultQuickSlots,
+  ensureItemIconTexture,
+  getItemDefinition
+} from "../data/ItemCatalog.js";
 
 import debugToggle from "../ui/DebugToggle.js";
 import { GFX, QUALITY_LEVELS, applyGraphicsPreset, updateCurrentZoom } from "../config/graphics.js";
@@ -93,6 +101,7 @@ export default class GameScene extends Phaser.Scene {
     this.resetQueued = false;
     this.lootDrops.clear();
     this.focusedLootDrop = null;
+
     this.cameras.main.setBackgroundColor("#2a2f3a");
     this.cameras.main.roundPixels = true;
 
@@ -370,7 +379,7 @@ export default class GameScene extends Phaser.Scene {
       sfxVolume: 0.9,
       bgmVolume: 0.7,
       resolutionScale: 1,
-      graphicsQuality: "High"
+      graphicsQuality: "Balanced"
     };
     this.optionsState = { ...defaultOptions, ...(restore.options || {}) };
 
@@ -903,7 +912,9 @@ export default class GameScene extends Phaser.Scene {
     if (!camera) {
       return;
     }
-    const baseZoom = typeof GFX.zoom === "number" ? GFX.zoom : 3;
+
+    const baseZoom = typeof GFX.zoom === "number" ? GFX.zoom : 1;
+
     const scale = Phaser.Math.Clamp(this.optionsState?.resolutionScale ?? 1, 0.7, 1.2);
     const snappedZoom = Phaser.Math.Clamp(Math.round(baseZoom * scale), 1, 4);
     camera.setZoom(snappedZoom);

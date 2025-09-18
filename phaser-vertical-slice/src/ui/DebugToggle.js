@@ -1,5 +1,14 @@
 import Phaser from "../phaser.js";
-import { isDebugHudVisible, setDebugHudVisible } from "../config/graphics.js";
+import { getDebugToggleKey, isDebugHudVisible, setDebugHudVisible } from "../config/graphics.js";
+
+function resolveToggleEventName() {
+  const key = getDebugToggleKey();
+  if (!key) {
+    return "keydown-F4";
+  }
+  return `keydown-${key}`;
+}
+
 
 class DebugToggle extends Phaser.Events.EventEmitter {
   constructor() {
@@ -16,17 +25,20 @@ class DebugToggle extends Phaser.Events.EventEmitter {
     if (!keyboard) {
       return;
     }
+
+    const eventName = resolveToggleEventName();
+
     const handleToggle = () => {
       this.toggle();
     };
     const handleShutdown = () => {
       this.unbind(scene);
     };
-
-    keyboard.on("keydown-F1", handleToggle);
+    keyboard.on(eventName, handleToggle);
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, handleShutdown);
 
-    this.boundScenes.set(scene, { handleToggle, handleShutdown });
+    this.boundScenes.set(scene, { handleToggle, handleShutdown, eventName });
+
     this.emit("changed", this.enabled, scene);
   }
 
@@ -36,8 +48,10 @@ class DebugToggle extends Phaser.Events.EventEmitter {
       return;
     }
     const keyboard = scene.input?.keyboard;
-    if (keyboard) {
-      keyboard.off("keydown-F1", entry.handleToggle);
+
+    if (keyboard && entry.eventName) {
+      keyboard.off(entry.eventName, entry.handleToggle);
+
     }
     scene.events.off(Phaser.Scenes.Events.SHUTDOWN, entry.handleShutdown);
     this.boundScenes.delete(scene);
