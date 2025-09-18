@@ -22,4 +22,12 @@
   forEachLive(fn) {
     this.live.forEach(fn);
   }
+
+  getLiveCount() {
+    return this.live.size;
+  }
+
+  getFreeCount() {
+    return this.free.length;
+  }
 }
