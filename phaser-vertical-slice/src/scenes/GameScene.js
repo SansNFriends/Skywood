@@ -9,6 +9,9 @@ import Projectile from "../entities/Projectile.js";
 import LootDrop from "../entities/LootDrop.js";
 import Spawner from "../systems/Spawner.js";
 import SaveManager from "../systems/SaveManager.js";
+
+import debugToggle from "../ui/DebugToggle.js";
+import { GFX, QUALITY_LEVELS, applyGraphicsPreset, updateCurrentZoom } from "../config/graphics.js";
 import {
   createDefaultInventory,
   createDefaultQuickSlots,
@@ -82,15 +85,16 @@ export default class GameScene extends Phaser.Scene {
 
     this.resetQueued = false;
 
+    this.debugHudVisible = debugToggle.getEnabled();
+
   }
 
   create() {
     this.resetQueued = false;
     this.lootDrops.clear();
     this.focusedLootDrop = null;
-
-
     this.cameras.main.setBackgroundColor("#2a2f3a");
+    this.cameras.main.roundPixels = true;
 
     this.saveManager = new SaveManager();
     this.restoredData = this.saveManager.load();
@@ -144,8 +148,18 @@ export default class GameScene extends Phaser.Scene {
     this.markProgressDirty("startup", true);
 
     this.perfMeter = new PerfMeter(this);
+    debugToggle.on("changed", this.handleDebugHudChange, this);
+    debugToggle.bind(this);
+    this.handleDebugHudChange(debugToggle.getEnabled());
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
+  }
+
+  handleDebugHudChange(visible) {
+    const enabled = Boolean(visible);
+    this.debugHudVisible = enabled;
+    this.perfMeter?.setVisible(enabled);
+    this.events.emit("debug-visibility", enabled);
   }
 
   createEffectPools() {
@@ -327,6 +341,7 @@ export default class GameScene extends Phaser.Scene {
     if (!usingSavedInventory) {
       this.sortInventoryEntries();
     }
+
     const defaultQuickSlots = createDefaultQuickSlots();
     this.quickSlots = defaultQuickSlots.map((slot) => ({ ...slot }));
     if (Array.isArray(restore.quickSlots)) {
@@ -884,22 +899,31 @@ export default class GameScene extends Phaser.Scene {
   }
 
   updateResolutionScale() {
-    const zoom = Phaser.Math.Clamp(this.optionsState.resolutionScale ?? 1, 0.7, 1.2);
-    this.cameras.main.setZoom(zoom);
+    const camera = this.cameras?.main;
+    if (!camera) {
+      return;
+    }
+    const baseZoom = typeof GFX.zoom === "number" ? GFX.zoom : 3;
+    const scale = Phaser.Math.Clamp(this.optionsState?.resolutionScale ?? 1, 0.7, 1.2);
+    const snappedZoom = Phaser.Math.Clamp(Math.round(baseZoom * scale), 1, 4);
+    camera.setZoom(snappedZoom);
+    camera.roundPixels = true;
+    updateCurrentZoom(snappedZoom);
   }
 
   applyGraphicsQuality(quality) {
+    const preset = applyGraphicsPreset(quality);
     const engine = this.matter?.world?.engine;
-    if (!engine) {
-      return;
+    if (engine) {
+      if (preset.quality === QUALITY_LEVELS.LOW) {
+        engine.positionIterations = 4;
+        engine.velocityIterations = 3;
+      } else {
+        engine.positionIterations = 6;
+        engine.velocityIterations = 4;
+      }
     }
-    if (quality === "Performance") {
-      engine.positionIterations = 4;
-      engine.velocityIterations = 3;
-    } else {
-      engine.positionIterations = 6;
-      engine.velocityIterations = 4;
-    }
+    this.updateResolutionScale();
   }
 
   updateUIHeartbeat(delta) {
@@ -1476,6 +1500,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
+    debugToggle.off("changed", this.handleDebugHudChange, this);
+    debugToggle.unbind(this);
     if (this.saveManager) {
       this.saveDirty = true;
       this.commitSave();

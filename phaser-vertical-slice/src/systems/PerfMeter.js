@@ -6,6 +6,7 @@ export default class PerfMeter {
   constructor(scene) {
     this.scene = scene;
     this.elapsed = 0;
+    this.visible = true;
     this.text = scene.add.text(12, 12, "", {
       fontFamily: "Consolas, Courier New, monospace",
       fontSize: "14px",
@@ -22,6 +23,9 @@ export default class PerfMeter {
   }
 
   handleUpdate(_time, delta) {
+    if (!this.visible) {
+      return;
+    }
     this.elapsed += delta;
     if (this.elapsed < UPDATE_INTERVAL_MS) {
       return;
@@ -70,6 +74,11 @@ export default class PerfMeter {
     this.text.setText(lines.join("\n"));
 
     this.elapsed = 0;
+  }
+
+  setVisible(visible) {
+    this.visible = Boolean(visible);
+    this.text?.setVisible(this.visible);
   }
 
   destroy() {
