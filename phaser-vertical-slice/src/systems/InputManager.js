@@ -198,6 +198,7 @@ export default class InputManager {
     }));
   }
 
+
   resetBindingsToDefault(action) {
     if (!action || !DEFAULT_KEYMAP[action]) {
       return false;

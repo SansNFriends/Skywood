@@ -7,10 +7,17 @@ import Pool from "../systems/Pool.js";
 import AudioManager from "../systems/AudioManager.js";
 import Projectile from "../entities/Projectile.js";
 import Spawner from "../systems/Spawner.js";
+import SaveManager from "../systems/SaveManager.js";
 
 const CAMERA_DEADZONE_X = 0.4;
 const CAMERA_DEADZONE_Y = 0.3;
 const UI_SYNC_INTERVAL = 120;
+
+const SAVE_DEBOUNCE_MS = 800;
+const SAVE_RETRY_MS = 4000;
+const AUTO_SAVE_INTERVAL = 15000;
+const PROJECTILE_CULL_PADDING = 220;
+
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -25,12 +32,23 @@ export default class GameScene extends Phaser.Scene {
     this.audio = null;
     this.projectilePool = null;
     this.projectiles = new Set();
+    this.damageTextPool = null;
+    this.lootPool = null;
     this.mobSpawner = null;
+
+
+    this.saveManager = null;
+    this.restoredData = null;
+    this.saveDirty = false;
+    this.saveCooldown = 0;
+    this.autoSaveTimer = 0;
+    this.lastSaveStatus = { state: "idle", timestamp: 0 };
+    this.lastSaveReason = "startup";
+    this.systemDirty = true;
 
     this.inventory = [];
     this.quickSlots = [];
     this.optionsState = {};
-
     this.bindingsDirty = false;
 
     this.inventoryDirty = false;
@@ -45,6 +63,15 @@ export default class GameScene extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor("#2a2f3a");
 
+    this.saveManager = new SaveManager();
+    this.restoredData = this.saveManager.load();
+    if (!this.saveManager.isAvailable()) {
+      this.lastSaveStatus = { state: "disabled", timestamp: Date.now() };
+    } else if (this.restoredData && typeof this.restoredData.timestamp === "number") {
+      this.lastSaveStatus = { state: "success", timestamp: this.restoredData.timestamp };
+    }
+    this.systemDirty = true;
+
     this.inputManager = new InputManager(this);
     this.audio = new AudioManager(this);
 
@@ -53,6 +80,7 @@ export default class GameScene extends Phaser.Scene {
 
     const spawn = this.getPlayerSpawn();
     this.player = new Player(this, spawn.x, spawn.y, this.inputManager);
+    this.applyRestoredPlayerState();
 
     this.projectilePool = new Pool(
       () => {
@@ -71,6 +99,8 @@ export default class GameScene extends Phaser.Scene {
       }
     );
 
+    this.createEffectPools();
+
     this.mobSpawner = new Spawner(this, {
       spawnX: spawn.x + 180,
       spawnY: spawn.y - 20,
@@ -82,9 +112,56 @@ export default class GameScene extends Phaser.Scene {
     this.initializeGameData();
     this.initializeUIBridge();
 
+
+    this.markProgressDirty("startup", true);
+
+
     this.perfMeter = new PerfMeter(this);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
+
+  }
+
+  createEffectPools() {
+    this.damageTextPool = new Pool(
+      () => {
+        const text = this.add.text(0, 0, "", {
+          fontFamily: "Rubik, 'Segoe UI', sans-serif",
+          fontSize: "18px",
+          color: "#ff5e5e"
+        });
+        text.setDepth(80);
+        text.setOrigin(0.5, 1);
+        text.setActive(false);
+        text.setVisible(false);
+        return text;
+      },
+      (text) => {
+        this.tweens.killTweensOf(text);
+        text.setAlpha(1);
+        text.setScale(1);
+        text.setActive(false);
+        text.setVisible(false);
+      }
+    );
+
+    this.lootPool = new Pool(
+      () => {
+        const rect = this.add.rectangle(0, 0, 12, 12, 0xffd166);
+        rect.setDepth(70);
+        rect.setActive(false);
+        rect.setVisible(false);
+        return rect;
+      },
+      (rect) => {
+        this.tweens.killTweensOf(rect);
+        rect.setAlpha(1);
+        rect.setScale(1);
+        rect.setActive(false);
+        rect.setVisible(false);
+      }
+    );
+
   }
 
   createParallax() {
@@ -135,6 +212,40 @@ export default class GameScene extends Phaser.Scene {
     this.matter.world.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
   }
 
+  applyRestoredPlayerState() {
+    if (!this.player || !this.restoredData || !this.restoredData.player) {
+      return;
+    }
+    const data = this.restoredData.player;
+    const hasMap = Boolean(this.map);
+    const clampX = hasMap
+      ? Phaser.Math.Clamp(
+          typeof data.x === "number" ? data.x : this.player.x,
+          32,
+          Math.max(32, this.map.widthInPixels - 32)
+        )
+      : typeof data.x === "number"
+        ? data.x
+        : this.player.x;
+    const clampY = hasMap
+      ? Phaser.Math.Clamp(
+          typeof data.y === "number" ? data.y : this.player.y,
+          0,
+          Math.max(0, this.map.heightInPixels - 16)
+        )
+      : typeof data.y === "number"
+        ? data.y
+        : this.player.y;
+
+    this.player.setPosition(clampX, clampY);
+    if (typeof data.hp === "number") {
+      this.player.stats.hp = Phaser.Math.Clamp(Math.round(data.hp), 0, this.player.stats.maxHP);
+    }
+    if (typeof data.mp === "number") {
+      this.player.stats.mp = Phaser.Math.Clamp(Math.round(data.mp), 0, this.player.stats.maxMP);
+    }
+  }
+
   getPlayerSpawn() {
     if (!this.map) {
       return { x: this.scale.width * 0.5, y: this.scale.height * 0.5 };
@@ -183,7 +294,11 @@ export default class GameScene extends Phaser.Scene {
   }
 
   initializeGameData() {
-    this.inventory = [
+
+    const restore = this.restoredData || {};
+
+    const defaultInventory = [
+
       {
         id: "skyroot_tonic",
         name: "Skyroot Tonic",
@@ -214,14 +329,48 @@ export default class GameScene extends Phaser.Scene {
       }
     ];
 
-    this.quickSlots = [
+
+    const savedInventory = Array.isArray(restore.inventory) ? restore.inventory : null;
+    const sourceInventory = savedInventory && savedInventory.length ? savedInventory : defaultInventory;
+    this.inventory = sourceInventory.map((item) => ({
+      id: item.id,
+      name: item.name,
+      type: item.type || "consumable",
+      quantity: Number.isFinite(item.quantity) ? Math.max(0, Math.round(item.quantity)) : 1,
+      description: item.description || ""
+    }));
+
+    const defaultQuickSlots = [
+
       { index: 0, itemId: "skyroot_tonic" },
       { index: 1, itemId: "azure_focus" },
       { index: 2, itemId: null },
       { index: 3, itemId: "wingburst_scroll" }
     ];
 
-    this.optionsState = {
+    this.quickSlots = defaultQuickSlots.map((slot) => ({ ...slot }));
+    if (Array.isArray(restore.quickSlots)) {
+      restore.quickSlots.forEach((slot) => {
+        if (!slot || typeof slot.index !== "number") {
+          return;
+        }
+        const idx = slot.index;
+        if (idx < 0 || idx >= this.quickSlots.length) {
+          return;
+        }
+        const itemId = typeof slot.itemId === "string" ? slot.itemId : null;
+        this.quickSlots[idx] = { index: idx, itemId };
+      });
+    }
+
+    const inventoryIds = new Set(this.inventory.map((item) => item.id));
+    this.quickSlots = this.quickSlots.map((slot) => ({
+      index: slot.index,
+      itemId: slot.itemId && inventoryIds.has(slot.itemId) ? slot.itemId : null
+    }));
+
+    const defaultOptions = {
+
       masterVolume: 0.8,
       sfxVolume: 0.9,
       bgmVolume: 0.7,
@@ -229,16 +378,24 @@ export default class GameScene extends Phaser.Scene {
       graphicsQuality: "High"
     };
 
+    this.optionsState = { ...defaultOptions, ...(restore.options || {}) };
+
+
     this.inventoryDirty = true;
     this.quickSlotsDirty = true;
     this.optionsDirty = true;
 
     this.bindingsDirty = true;
 
-
     this.audio.applyMixSettings(this.optionsState);
     this.updateResolutionScale();
     this.applyGraphicsQuality(this.optionsState.graphicsQuality);
+
+    if (Array.isArray(restore.bindings) && this.inputManager?.applyBindingSnapshot) {
+      this.inputManager.applyBindingSnapshot(restore.bindings);
+      this.bindingsDirty = true;
+    }
+
   }
 
   initializeUIBridge() {
@@ -274,6 +431,9 @@ export default class GameScene extends Phaser.Scene {
     this.mobSpawner?.update(time, delta);
     this.updateProjectiles();
     this.handleMobInteractions();
+
+    this.updateSaveHeartbeat(delta);
+
     this.updateUIHeartbeat(delta);
   }
 
@@ -349,6 +509,9 @@ export default class GameScene extends Phaser.Scene {
     if (!itemId) {
       this.quickSlots[slotIndex] = { index: slotIndex, itemId: null };
       this.quickSlotsDirty = true;
+
+      this.markProgressDirty("quickslot");
+
       this.syncUI(true);
       return;
     }
@@ -358,14 +521,21 @@ export default class GameScene extends Phaser.Scene {
     }
     this.quickSlots[slotIndex] = { index: slotIndex, itemId };
     this.quickSlotsDirty = true;
+
+    this.markProgressDirty("quickslot");
     this.syncUI(true);
   }
+
+
   handleRebindAction({ action, keyCode }) {
     if (!action || typeof keyCode !== "number" || !Number.isFinite(keyCode)) {
       return;
     }
     if (this.inputManager?.rebindAction(action, keyCode)) {
       this.bindingsDirty = true;
+
+      this.markProgressDirty("bindings");
+
       this.syncUI(true);
     }
   }
@@ -376,6 +546,9 @@ export default class GameScene extends Phaser.Scene {
     }
     this.inputManager.resetAllBindings();
     this.bindingsDirty = true;
+
+    this.markProgressDirty("bindings");
+
     this.syncUI(true);
   }
 
@@ -394,6 +567,9 @@ export default class GameScene extends Phaser.Scene {
     if (patch.graphicsQuality !== undefined) {
       this.applyGraphicsQuality(this.optionsState.graphicsQuality);
     }
+
+
+    this.markProgressDirty("options");
 
     this.syncUI(true);
   }
@@ -426,6 +602,71 @@ export default class GameScene extends Phaser.Scene {
     this.syncUI();
   }
 
+
+  updateSaveHeartbeat(delta) {
+    if (!this.saveManager) {
+      return;
+    }
+
+    this.autoSaveTimer += delta;
+    if (this.autoSaveTimer >= AUTO_SAVE_INTERVAL) {
+      this.autoSaveTimer = 0;
+      if (!this.saveDirty) {
+        this.markProgressDirty("autosave");
+      }
+    }
+
+    if (!this.saveDirty) {
+      return;
+    }
+
+    this.saveCooldown -= delta;
+    if (this.saveCooldown <= 0) {
+      this.commitSave();
+    }
+  }
+
+  markProgressDirty(reason = "update", immediate = false) {
+    if (this.saveDirty) {
+      this.saveCooldown = immediate ? 0 : Math.min(this.saveCooldown, SAVE_DEBOUNCE_MS);
+    } else {
+      this.saveDirty = true;
+      this.saveCooldown = immediate ? 0 : SAVE_DEBOUNCE_MS;
+    }
+    this.lastSaveReason = reason;
+    this.systemDirty = true;
+  }
+
+  commitSave() {
+    if (!this.saveManager) {
+      this.saveDirty = false;
+      return;
+    }
+
+    if (!this.saveManager.isAvailable()) {
+      this.saveDirty = false;
+      this.lastSaveStatus = { state: "disabled", timestamp: Date.now() };
+      this.systemDirty = true;
+      return;
+    }
+
+    const result = this.saveManager.save(this.collectSaveData());
+    const timestamp = result.timestamp ?? Date.now();
+    if (result.ok) {
+      this.saveDirty = false;
+      this.lastSaveStatus = { state: "success", timestamp };
+    } else if (result.reason === "unavailable") {
+      this.saveDirty = false;
+      this.lastSaveStatus = { state: "disabled", timestamp };
+    } else {
+      this.saveDirty = true;
+      this.saveCooldown = SAVE_RETRY_MS;
+      this.lastSaveStatus = { state: "error", timestamp };
+    }
+    this.systemDirty = true;
+  }
+
+
   syncUI(force = false) {
     const payload = this.buildUIState(force);
     this.events.emit("ui-state", payload);
@@ -441,6 +682,9 @@ export default class GameScene extends Phaser.Scene {
 
     if (force || this.bindingsDirty) {
       this.bindingsDirty = false;
+    }
+    if (force || this.systemDirty) {
+      this.systemDirty = false;
     }
 
   }
@@ -458,13 +702,9 @@ export default class GameScene extends Phaser.Scene {
         }
       : null;
 
-    const performance = {
-      fps: this.game.loop.actualFps || 0,
-      frameTime: this.lastFrameTime,
-      objects: this.children.list.length,
-      mobs: this.mobSpawner ? this.mobSpawner.getActiveMobs().length : 0,
-      projectiles: this.projectiles.size
-    };
+
+    const performance = this.getPerfSnapshot();
+
 
     const payload = {
       hud,
@@ -476,7 +716,9 @@ export default class GameScene extends Phaser.Scene {
         optionsOpen: this.menuState.optionsOpen
       },
 
-      map: this.collectMapState()
+      map: this.collectMapState(),
+      system: this.collectSystemState()
+
     };
 
     if (force || this.quickSlotsDirty) {
@@ -492,7 +734,6 @@ export default class GameScene extends Phaser.Scene {
     if (force || this.bindingsDirty) {
       payload.bindings = this.collectBindingState();
     }
-
 
     return payload;
   }
@@ -512,11 +753,87 @@ export default class GameScene extends Phaser.Scene {
   collectInventoryState() {
     return this.inventory.map((item) => ({ ...item }));
   }
+
   collectBindingState() {
     if (!this.inputManager?.getBindingSnapshot) {
       return [];
     }
     return this.inputManager.getBindingSnapshot();
+  }
+
+
+  collectSaveData() {
+    const payload = {
+      inventory: this.collectInventoryState(),
+      quickSlots: this.quickSlots.map((slot) => ({
+        index: slot.index,
+        itemId: slot.itemId ?? null
+      })),
+      options: { ...this.optionsState },
+      bindings: this.inputManager?.getBindingSnapshot
+        ? this.inputManager.getBindingSnapshot().map((entry) => ({
+            action: entry.action,
+            codes: Array.isArray(entry.codes) ? [...entry.codes] : []
+          }))
+        : []
+    };
+
+    if (this.player) {
+      payload.player = {
+        x: Math.round(this.player.x),
+        y: Math.round(this.player.y),
+        hp: Math.round(this.player.stats.hp),
+        mp: Math.round(this.player.stats.mp)
+      };
+    }
+
+    return payload;
+  }
+
+  countActiveProjectiles() {
+    let count = 0;
+    this.projectiles.forEach((projectile) => {
+      if (projectile.active) {
+        count += 1;
+      }
+    });
+    return count;
+  }
+
+  getPerfSnapshot() {
+    const objects = this.children?.list?.length ?? 0;
+    const mobsActive = this.mobSpawner ? this.mobSpawner.getManagedCount() : 0;
+    const mobsVisible = this.mobSpawner ? this.mobSpawner.getVisibleCount() : 0;
+    const projectileCount = this.countActiveProjectiles();
+
+    return {
+      fps: this.game.loop.actualFps || 0,
+      frameTime: this.lastFrameTime,
+      objects,
+      mobsActive,
+      mobsVisible,
+      projectiles: projectileCount,
+      pools: {
+        projectile: this.projectilePool
+          ? { live: this.projectilePool.getLiveCount(), free: this.projectilePool.getFreeCount() }
+          : null,
+        damageText: this.damageTextPool
+          ? { live: this.damageTextPool.getLiveCount(), free: this.damageTextPool.getFreeCount() }
+          : null
+      }
+    };
+  }
+
+  collectSystemState() {
+    return {
+      save: {
+        state: this.lastSaveStatus?.state ?? "idle",
+        timestamp: this.lastSaveStatus?.timestamp ?? 0,
+        dirty: this.saveDirty,
+        reason: this.lastSaveReason,
+        available: this.saveManager?.isAvailable() ?? false
+      }
+    };
   }
 
   collectMapState() {
@@ -526,7 +843,9 @@ export default class GameScene extends Phaser.Scene {
     const mobs = [];
     if (this.mobSpawner) {
       this.mobSpawner.getActiveMobs().forEach((mob) => {
-        if (mob.active) {
+
+        if (mob.active && !mob.isCulled) {
+
           mobs.push({ x: mob.x, y: mob.y });
         }
       });
@@ -606,8 +925,18 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
     const mobs = this.mobSpawner.getActiveMobs();
+    const camera = this.cameras?.main;
+    const view = camera ? camera.worldView : null;
+    const left = view ? view.x - PROJECTILE_CULL_PADDING : Number.NEGATIVE_INFINITY;
+    const right = view ? view.right + PROJECTILE_CULL_PADDING : Number.POSITIVE_INFINITY;
+    const top = view ? view.y - PROJECTILE_CULL_PADDING : Number.NEGATIVE_INFINITY;
+    const bottom = view ? view.bottom + PROJECTILE_CULL_PADDING : Number.POSITIVE_INFINITY;
     this.projectiles.forEach((projectile) => {
       if (!projectile.active) {
+        return;
+      }
+      if (projectile.x < left || projectile.x > right || projectile.y < top || projectile.y > bottom) {
+        projectile.lifespan = 0;
         return;
       }
       const bounds = projectile.getBounds();
@@ -640,6 +969,7 @@ export default class GameScene extends Phaser.Scene {
           mob.pendingHit = false;
           this.cameras.main.flash(80, 255, 80, 80);
           this.audio?.play(ASSET_KEYS.AUDIO.CORE_SFX, "hit");
+          this.markProgressDirty("player-damage");
         }
       }
     });
@@ -659,14 +989,21 @@ export default class GameScene extends Phaser.Scene {
   }
 
   spawnDamageNumber(x, y, value, color) {
+
+    if (!this.damageTextPool) {
+      return;
+    }
     const tint = color ?? "#ff5e5e";
-    const text = this.add.text(x, y, String(value), {
-      fontFamily: "Rubik, 'Segoe UI', sans-serif",
-      fontSize: "18px",
-      color: tint
-    });
-    text.setDepth(80);
-    text.setOrigin(0.5, 1);
+    const text = this.damageTextPool.obtain();
+    text.setText(String(value));
+    text.setColor(tint);
+    text.setPosition(x, y);
+    text.setAlpha(1);
+    text.setScale(1);
+    text.setActive(true);
+    text.setVisible(true);
+    this.tweens.killTweensOf(text);
+
 
     this.tweens.add({
       targets: text,
@@ -674,24 +1011,46 @@ export default class GameScene extends Phaser.Scene {
       alpha: 0,
       duration: 400,
       ease: "Cubic.Out",
-      onComplete: () => text.destroy()
+
+      onComplete: () => {
+        this.damageTextPool.release(text);
+      }
+
     });
   }
 
   spawnLoot(x, y) {
-    const loot = this.add.rectangle(x, y, 12, 12, 0xffd166);
-    loot.setDepth(70);
+
+    if (!this.lootPool) {
+      return;
+    }
+    const loot = this.lootPool.obtain();
+    loot.setPosition(x, y);
+    loot.setAlpha(1);
+    loot.setScale(1);
+    loot.setActive(true);
+    loot.setVisible(true);
+    this.tweens.killTweensOf(loot);
+
     this.tweens.add({
       targets: loot,
       y: y + 24,
       alpha: 0,
       duration: 600,
       ease: "Sine.In",
-      onComplete: () => loot.destroy()
+      onComplete: () => {
+        this.lootPool.release(loot);
+      }
     });
   }
 
   shutdown() {
+
+    if (this.saveManager) {
+      this.saveDirty = true;
+      this.commitSave();
+    }
+
     this.audio?.stopBgm({ fadeOut: 160 });
     this.perfMeter?.destroy();
     this.perfMeter = null;
@@ -700,6 +1059,18 @@ export default class GameScene extends Phaser.Scene {
     this.parallaxLayers = [];
     this.inputManager = null;
     this.projectiles.clear();
+
+    if (this.damageTextPool) {
+      this.damageTextPool.forEachLive((text) => text.destroy());
+      this.damageTextPool.free.forEach((text) => text.destroy());
+      this.damageTextPool = null;
+    }
+    if (this.lootPool) {
+      this.lootPool.forEachLive((rect) => rect.destroy());
+      this.lootPool.free.forEach((rect) => rect.destroy());
+      this.lootPool = null;
+    }
+
     if (this.scene.isActive && this.scene.isActive("UIScene")) {
       this.scene.stop("UIScene");
     }
@@ -711,6 +1082,9 @@ export default class GameScene extends Phaser.Scene {
     this.events.off("ui-reset-bindings", this.handleResetBindings, this);
     this.events.off("ui-ready", this.handleUIReady, this);
     this.audio = null;
+
+    this.saveManager = null;
+    this.restoredData = null;
 
   }
 }

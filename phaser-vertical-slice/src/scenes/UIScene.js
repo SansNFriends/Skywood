@@ -42,6 +42,14 @@ export default class UIScene extends Phaser.Scene {
     this.bindingListenAction = null;
     this.bindingListenLabel = "";
     this.optionsHintBase = "";
+
+    this.systemStatusText = null;
+    this.systemState = { save: { state: "idle", timestamp: 0, dirty: false, reason: "", available: true } };
+    this.bugOverlay = null;
+    this.bugOverlayText = null;
+    this.bugOverlayVisible = false;
+    this.bugToggleKey = null;
+
   }
 
   init(data) {
@@ -62,6 +70,10 @@ export default class UIScene extends Phaser.Scene {
     this.createMiniMap();
     this.createInventoryPanel();
     this.createOptionsPanel();
+
+    this.createSystemBanner();
+    this.createBugOverlay();
+
     this.installInputHandlers();
 
     this.scene.bringToTop();
@@ -304,6 +316,63 @@ export default class UIScene extends Phaser.Scene {
     this.optionsHintText = hint;
 
     this.optionsHintBase = baseHint;
+  }
+
+  createSystemBanner() {
+    this.systemStatusText = this.add
+      .text(24, this.scale.height - 92, "", {
+        fontFamily: "Rubik, 'Segoe UI', sans-serif",
+        fontSize: "14px",
+        color: "#d3d7ff"
+      })
+      .setDepth(HUD_DEPTH)
+      .setScrollFactor(0);
+  }
+
+  createBugOverlay() {
+    const container = this.add
+      .container(this.scale.width * 0.5, this.scale.height * 0.5)
+      .setDepth(HUD_DEPTH + 60)
+      .setScrollFactor(0)
+      .setVisible(false);
+
+    const overlay = this.add
+      .rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.68)
+      .setOrigin(0.5)
+      .setInteractive();
+
+    const panelWidth = Math.min(620, this.scale.width - 80);
+    const panelHeight = Math.min(360, this.scale.height - 80);
+    const panel = this.add
+      .rectangle(0, 0, panelWidth, panelHeight, 0x111522, 0.95)
+      .setOrigin(0.5)
+      .setStrokeStyle(2, 0x3a476a, 0.85);
+
+    const title = this.add.text(0, -panelHeight * 0.5 + 28, "Bug Report Checklist", this.getTitleStyle()).setOrigin(0.5, 0);
+
+    const body = this.add
+      .text(
+        -panelWidth * 0.5 + 24,
+        -panelHeight * 0.5 + 72,
+        "",
+        {
+          fontFamily: "Rubik, 'Segoe UI', sans-serif",
+          fontSize: "16px",
+          color: "#f2f4ff",
+          lineSpacing: 6,
+          wordWrap: { width: panelWidth - 48 }
+        }
+      )
+      .setOrigin(0, 0);
+
+    overlay.on("pointerdown", () => {
+      this.toggleBugOverlay(false);
+    });
+
+    container.add([overlay, panel, title, body]);
+
+    this.bugOverlay = container;
+    this.bugOverlayText = body;
 
   }
 
@@ -324,6 +393,13 @@ export default class UIScene extends Phaser.Scene {
     });
 
     this.input.keyboard.on("keydown", this.handleGlobalKeydown, this);
+    this.input.keyboard.on("keydown-ESC", this.handleEscKey, this);
+    this.bugToggleKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F8);
+    if (this.bugToggleKey) {
+      this.bugToggleKey.on("down", () => {
+        this.toggleBugOverlay();
+      });
+    }
 
   }
 
@@ -376,6 +452,10 @@ export default class UIScene extends Phaser.Scene {
 
       this.syncPanelsFromMenu(payload.menu);
     }
+    if (payload.system) {
+      this.updateSystemStatus(payload.system);
+    }
+
   }
 
   syncPanelsFromMenu(menuState) {
@@ -445,6 +525,108 @@ export default class UIScene extends Phaser.Scene {
     }
   }
 
+
+  handleEscKey() {
+    if (this.bindingListenAction) {
+      return;
+    }
+    if (this.bugOverlayVisible) {
+      this.toggleBugOverlay(false);
+    }
+  }
+
+  toggleBugOverlay(force) {
+    if (!this.bugOverlay) {
+      return;
+    }
+    const target = typeof force === "boolean" ? force : !this.bugOverlayVisible;
+    this.bugOverlayVisible = target;
+    this.bugOverlay.setVisible(target);
+    if (target) {
+      this.refreshBugOverlay();
+    }
+  }
+
+  refreshBugOverlay() {
+    if (!this.bugOverlayText) {
+      return;
+    }
+    const save = this.systemState?.save || {};
+    const statusLine = (() => {
+      if (!save.available) {
+        return "⚠ 저장 불가: 브라우저 저장소 접근 차단";
+      }
+      if (save.state === "error") {
+        return "⚠ 저장 실패: 콘솔 오류와 재현 절차를 첨부하세요";
+      }
+      if (save.state === "success") {
+        return `마지막 저장: ${this.formatTimestamp(save.timestamp)}`;
+      }
+      if (save.dirty) {
+        return "저장 대기 중 (잠시 후 자동 저장)";
+      }
+      return "저장 상태: 대기 중";
+    })();
+
+    const lines = [
+      statusLine,
+      "",
+      "• 증상이 발생한 입력/행동 순서를 단계별로 적어주세요.",
+      "• 브라우저, 운영체제, FPS(좌측 상단)을 기록하세요.",
+      "• 개발자 도구 콘솔 오류와 화면 스크린샷을 첨부하면 빠르게 재현할 수 있습니다.",
+      "• F8로 이 패널을 열고 ESC로 닫습니다."
+    ];
+
+    this.bugOverlayText.setText(lines.join("\n"));
+  }
+
+  updateSystemStatus(system) {
+    if (!system) {
+      return;
+    }
+    const mergedSave = { ...this.systemState.save, ...(system.save || {}) };
+    this.systemState = { ...this.systemState, ...system, save: mergedSave };
+
+    if (this.systemStatusText) {
+      let message = "자동 저장 대기 중";
+      let color = "#d3d7ff";
+      if (!mergedSave.available) {
+        message = "⚠ 저장 불가: 브라우저 저장소 차단";
+        color = "#ff9176";
+      } else if (mergedSave.state === "error") {
+        message = "⚠ 저장 실패: 콘솔 로그 확인";
+        color = "#ff9176";
+      } else if (mergedSave.state === "success" && mergedSave.timestamp) {
+        message = `저장 완료 ${this.formatTimestamp(mergedSave.timestamp)}`;
+      } else if (mergedSave.dirty) {
+        message = "저장 대기 중...";
+      }
+      const infoLines = [message, "F8: 버그 리포트 패널"];
+      this.systemStatusText.setText(infoLines);
+      this.systemStatusText.setColor(color);
+    }
+
+    if (this.bugOverlayVisible) {
+      this.refreshBugOverlay();
+    }
+  }
+
+  formatTimestamp(timestamp) {
+    if (typeof timestamp !== "number" || Number.isNaN(timestamp) || timestamp <= 0) {
+      return "--:--:--";
+    }
+    try {
+      const date = new Date(timestamp);
+      if (Number.isNaN(date.getTime())) {
+        return "--:--:--";
+      }
+      return date.toLocaleTimeString("ko-KR", { hour12: false });
+    } catch (error) {
+      return "--:--:--";
+    }
+  }
+
+
   setBindingState(bindings) {
     if (!Array.isArray(bindings)) {
       this.bindingState = [];
@@ -478,14 +660,37 @@ export default class UIScene extends Phaser.Scene {
 
     const fps = performance && typeof performance.fps === "number" ? performance.fps : 0;
     const frameTime = performance && typeof performance.frameTime === "number" ? performance.frameTime : 0;
+    const objects = performance && typeof performance.objects === "number" ? performance.objects : 0;
+    const mobsVisible =
+      performance && typeof performance.mobsVisible === "number"
+        ? performance.mobsVisible
+        : performance && typeof performance.mobs === "number"
+          ? performance.mobs
+          : 0;
+    const mobsActive =
+      performance && typeof performance.mobsActive === "number" ? performance.mobsActive : mobsVisible;
+    const projectiles =
+      performance && typeof performance.projectiles === "number" ? performance.projectiles : 0;
+    const projectilePool = performance?.pools?.projectile;
+    const textPool = performance?.pools?.damageText;
     const lines = [
       `FPS ${fps.toFixed(0)}`,
       `Frame ${frameTime.toFixed(1)} ms`,
-
-      `Objects ${performance.objects}`,
-      `Mobs ${performance.mobs}`,
-      `Projectiles ${performance.projectiles}`
+      `Objects ${objects}`,
+      `Mobs ${mobsVisible}/${mobsActive}`,
+      `Projectiles ${projectiles}`
     ];
+    if (projectilePool) {
+      const live = typeof projectilePool.live === "number" ? projectilePool.live : 0;
+      const free = typeof projectilePool.free === "number" ? projectilePool.free : 0;
+      lines.push(`ProjPool ${live}/${free}`);
+    }
+    if (textPool) {
+      const live = typeof textPool.live === "number" ? textPool.live : 0;
+      const free = typeof textPool.free === "number" ? textPool.free : 0;
+      lines.push(`TextPool ${live}/${free}`);
+    }
+
     this.performanceText.setText(lines);
   }
 
@@ -954,6 +1159,11 @@ export default class UIScene extends Phaser.Scene {
     this.cancelBindingCapture();
     if (this.input && this.input.keyboard) {
       this.input.keyboard.off("keydown", this.handleGlobalKeydown, this);
+      this.input.keyboard.off("keydown-ESC", this.handleEscKey, this);
+    }
+    if (this.bugToggleKey) {
+      this.bugToggleKey.destroy();
+      this.bugToggleKey = null;
     }
 
     this.gameScene = null;
