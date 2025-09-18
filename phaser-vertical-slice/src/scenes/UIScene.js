@@ -1,5 +1,7 @@
 import Phaser from "../phaser.js";
 import { INPUT_KEYS } from "../systems/InputManager.js";
+import { ITEM_CATALOG, ensureAllItemIcons } from "../data/ItemCatalog.js";
+import debugToggle from "../ui/DebugToggle.js";
 
 const HUD_DEPTH = 2000;
 const QUICK_SLOT_COUNT = 4;
@@ -26,6 +28,9 @@ export default class UIScene extends Phaser.Scene {
     this.inventoryData = [];
     this.inventoryVisible = false;
     this.inventorySelectionIndex = 0;
+    this.inventoryDetailIcon = null;
+    this.inventoryDetailIconFrame = null;
+    this.inventoryDetailMetaText = null;
     this.quickSlotData = [];
     this.optionsContainer = null;
     this.optionsListText = null;
@@ -48,6 +53,7 @@ export default class UIScene extends Phaser.Scene {
     this.bugOverlayVisible = false;
     this.bugToggleKey = null;
     this.resetInProgress = false;
+    this.debugHudVisible = debugToggle.getEnabled();
 
   }
 
@@ -64,6 +70,9 @@ export default class UIScene extends Phaser.Scene {
 
     this.createHud();
     this.createPerformanceReadout();
+    ensureAllItemIcons(this);
+    debugToggle.on("changed", this.handleDebugHudChange, this);
+    this.handleDebugHudChange(debugToggle.getEnabled());
     this.createQuickSlots();
     this.createMiniMap();
     this.createInventoryPanel();
@@ -149,7 +158,13 @@ export default class UIScene extends Phaser.Scene {
         color: "#d3d7ff"
       })
       .setDepth(HUD_DEPTH)
-      .setScrollFactor(0);
+      .setScrollFactor(0)
+      .setVisible(this.debugHudVisible);
+  }
+
+  handleDebugHudChange(visible) {
+    this.debugHudVisible = Boolean(visible);
+    this.performanceText?.setVisible(this.debugHudVisible);
   }
 
   createQuickSlots() {
@@ -168,13 +183,14 @@ export default class UIScene extends Phaser.Scene {
         .rectangle(slotX, 0, 52, 52, 0x1b2235, 0.9)
         .setOrigin(0.5)
         .setStrokeStyle(1, 0x4d5a7d, 0.9);
-      const label = this.add
-        .text(slotX, -8, "--", {
-          fontFamily: "Rubik, 'Segoe UI', sans-serif",
-          fontSize: "16px",
-          color: "#f4f5ff"
-        })
-        .setOrigin(0.5);
+      const icon = this.add
+        .image(slotX, -4, "__DEFAULT")
+        .setDisplaySize(36, 36)
+        .setVisible(false);
+      const cooldownOverlay = this.add
+        .rectangle(slotX, 24, 46, 46, 0x0b101d, 0.7)
+        .setOrigin(0.5, 1)
+        .setVisible(false);
       const quantity = this.add
         .text(slotX, 14, "", {
           fontFamily: "Rubik, 'Segoe UI', sans-serif",
@@ -189,13 +205,23 @@ export default class UIScene extends Phaser.Scene {
           color: "#94a0c8"
         })
         .setOrigin(0.5);
+      const cooldownText = this.add
+        .text(slotX, -18, "", {
+          fontFamily: "Rubik, 'Segoe UI', sans-serif",
+          fontSize: "13px",
+          color: "#dbe8ff"
+        })
+        .setOrigin(0.5)
+        .setVisible(false);
 
       container.add(frame);
-      container.add(label);
+      container.add(icon);
+      container.add(cooldownOverlay);
       container.add(quantity);
       container.add(hotkey);
+      container.add(cooldownText);
 
-      this.quickSlotVisuals.push({ frame, label, quantity, hotkey });
+      this.quickSlotVisuals.push({ frame, icon, quantity, hotkey, cooldownOverlay, cooldownText });
     }
 
     this.quickSlotContainer = container;
@@ -241,12 +267,32 @@ export default class UIScene extends Phaser.Scene {
         lineSpacing: 6
       })
       .setOrigin(0, 0);
+    const iconFrame = this.add
+      .rectangle(150, -40, 112, 112, 0x1b2235, 0.95)
+      .setOrigin(0.5)
+      .setStrokeStyle(2, 0x4d5a7d, 0.9)
+      .setVisible(false);
+    const iconImage = this.add
+      .image(150, -40, "__DEFAULT")
+      .setDisplaySize(88, 88)
+      .setVisible(false);
+    const meta = this.add
+      .text(110, 30, "", {
+        fontFamily: "Rubik, 'Segoe UI', sans-serif",
+        fontSize: "14px",
+        color: "#b3c2ef",
+        lineSpacing: 4,
+        wordWrap: { width: 200 }
+      })
+      .setOrigin(0, 0)
+      .setVisible(false);
     const detail = this.add
-      .text(-220, 40, "", {
+      .text(-220, 60, "", {
         fontFamily: "Rubik, 'Segoe UI', sans-serif",
         fontSize: "16px",
         color: "#d0d7ff",
-        wordWrap: { width: 480 }
+        lineSpacing: 6,
+        wordWrap: { width: 320 }
       })
       .setOrigin(0, 0);
     const hint = this.add
@@ -262,12 +308,15 @@ export default class UIScene extends Phaser.Scene {
       this.emitGameEvent("ui-close-panel", { panel: "inventory" });
     });
 
-    container.add([overlay, panel, title, list, detail, hint]);
+    container.add([overlay, panel, title, list, iconFrame, iconImage, meta, detail, hint]);
 
     this.inventoryContainer = container;
     this.inventoryListText = list;
     this.inventoryDetailText = detail;
     this.inventoryHintText = hint;
+    this.inventoryDetailIcon = iconImage;
+    this.inventoryDetailIconFrame = iconFrame;
+    this.inventoryDetailMetaText = meta;
   }
 
   createOptionsPanel() {
@@ -410,6 +459,9 @@ export default class UIScene extends Phaser.Scene {
     if (payload.quickSlots) {
       this.quickSlotData = payload.quickSlots;
       this.updateQuickSlots();
+      if (this.inventoryVisible) {
+        this.refreshInventoryList();
+      }
     }
     if (payload.inventory) {
       this.inventoryData = payload.inventory;
@@ -698,7 +750,18 @@ export default class UIScene extends Phaser.Scene {
   updateQuickSlots() {
     this.quickSlotVisuals.forEach((visual) => {
       visual.frame.setFillStyle(0x151b2a, 0.8);
-      visual.label.setText("--");
+      if (visual.icon) {
+        visual.icon.setVisible(false);
+        visual.icon.setAlpha(1);
+      }
+      if (visual.cooldownOverlay) {
+        visual.cooldownOverlay.setVisible(false);
+        visual.cooldownOverlay.setScale(1, 0);
+      }
+      if (visual.cooldownText) {
+        visual.cooldownText.setVisible(false);
+        visual.cooldownText.setText("");
+      }
       visual.quantity.setText("");
     });
 
@@ -708,9 +771,27 @@ export default class UIScene extends Phaser.Scene {
         return;
       }
       visual.frame.setFillStyle(0x1f273a, 0.9);
-      const name = slot.name || "--";
-      visual.label.setText(name.length > 9 ? `${name.slice(0, 8)}...` : name);
+      if (slot.iconKey && this.textures.exists(slot.iconKey) && visual.icon) {
+        visual.icon.setTexture(slot.iconKey);
+        visual.icon.setVisible(true);
+      } else if (visual.icon) {
+        visual.icon.setVisible(false);
+      }
       visual.quantity.setText(slot.quantity > 1 ? `x${slot.quantity}` : "");
+
+      const hasCooldown = slot.cooldownTotal > 0 && slot.cooldownRemaining > 0;
+      if (hasCooldown && visual.cooldownOverlay && visual.cooldownText) {
+        const ratio = Phaser.Math.Clamp(slot.cooldownRemaining / slot.cooldownTotal, 0, 1);
+        visual.cooldownOverlay.setVisible(true);
+        visual.cooldownOverlay.setScale(1, ratio);
+        visual.cooldownText.setVisible(true);
+        const seconds = slot.cooldownRemaining / 1000;
+        const precision = seconds >= 10 ? 0 : 1;
+        visual.cooldownText.setText(`${seconds.toFixed(precision)}s`);
+        if (visual.icon) {
+          visual.icon.setAlpha(0.45);
+        }
+      }
     });
   }
 
@@ -992,6 +1073,7 @@ export default class UIScene extends Phaser.Scene {
     if (!this.inventoryData.length) {
       this.inventoryListText.setText(["(\uc544\uc774\ud15c \uc5c6\uc74c)"]);
       this.inventoryDetailText.setText("\uc804\ub9ac\ud488\uc744 \ud68d\ub4dd\ud574 \uc778\ubca4\ud1a0\ub9ac\ub97c \ucc44\uc6b0\uc138\uc694.");
+      this.updateInventoryDetailIcon(null);
       return;
     }
 
@@ -1012,8 +1094,114 @@ export default class UIScene extends Phaser.Scene {
 
     this.inventoryListText.setText(lines);
     const selected = this.inventoryData[this.inventorySelectionIndex];
-    const detailText = selected && selected.description ? selected.description : "\uc0c1\uc138 \uc124\uba85\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.";
-    this.inventoryDetailText.setText(detailText);
+    if (!selected) {
+      this.inventoryDetailText.setText("\uc120\ud0dd\ud55c \uc544\uc774\ud15c\uc758 \uc815\ubcf4\ub97c \ubcf4\uc2dc\ub824\uba74 \ub9ac\uc2a4\ud2b8\uc5d0\uc11c \uc120\ud0dd\ud558\uc138\uc694.");
+      this.updateInventoryDetailIcon(null);
+      return;
+    }
+
+    const description = selected.description ? selected.description : "\uc0c1\uc138 \uc124\uba85\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.";
+    const detailLines = [selected.name || selected.id || "\uc54c \uc218 \uc5c6\ub294 \uc544\uc774\ud15c", "", description];
+    this.inventoryDetailText.setText(detailLines);
+    this.updateInventoryDetailIcon(selected);
+  }
+
+  updateInventoryDetailIcon(item) {
+    if (!this.inventoryDetailIconFrame || !this.inventoryDetailIcon) {
+      return;
+    }
+
+    const meta = this.inventoryDetailMetaText;
+
+    if (!item) {
+      this.inventoryDetailIcon.setVisible(false);
+      this.inventoryDetailIconFrame.setVisible(false);
+      if (meta) {
+        meta.setText("");
+        meta.setVisible(false);
+      }
+      return;
+    }
+
+    const definition = item.id ? ITEM_CATALOG[item.id] : null;
+    const iconKey = item.iconKey || definition?.iconKey || null;
+    const hasIcon = Boolean(iconKey && this.textures.exists(iconKey));
+    if (hasIcon) {
+      this.inventoryDetailIcon.setTexture(iconKey);
+      this.inventoryDetailIcon.setVisible(true);
+    } else {
+      this.inventoryDetailIcon.setVisible(false);
+    }
+
+    if (hasIcon) {
+      const typeKey = (item.type || definition?.type || "").toLowerCase();
+      const fillMap = {
+        consumable: 0x1d2b3c,
+        material: 0x2c211c,
+        skill: 0x26213a
+      };
+      const strokeMap = {
+        consumable: 0x4d6fa3,
+        material: 0x7d5b42,
+        skill: 0x7564b7
+      };
+      const fill = fillMap[typeKey] ?? 0x1b2235;
+      const stroke = strokeMap[typeKey] ?? 0x4d5a7d;
+      this.inventoryDetailIconFrame.setFillStyle(fill, 0.95);
+      this.inventoryDetailIconFrame.setStrokeStyle(2, stroke, 0.9);
+      this.inventoryDetailIconFrame.setVisible(true);
+    } else {
+      this.inventoryDetailIconFrame.setVisible(false);
+    }
+
+    if (meta) {
+      const typeKey = (item.type || definition?.type || "").toLowerCase();
+      const typeLabelMap = {
+        consumable: "\uc18c\ubaa8\ud488",
+        material: "\uc7ac\ub8cc",
+        skill: "\uc2a4\d0ac\uc11c"
+      };
+      const formatTitle = (value) =>
+        value
+          .split(/[-_\s]+/)
+          .filter(Boolean)
+          .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+          .join(" ");
+      const typeLabel = typeLabelMap[typeKey] ?? (typeKey ? formatTitle(typeKey) : "\uae30\ud0c0");
+
+      const metaLines = [`\ubd84\ub958: ${typeLabel}`];
+      const quantity = Number.isFinite(item.quantity) ? item.quantity : 0;
+      metaLines.push(`\ubcf4\uc720: x${quantity}`);
+
+      const cooldownMs = Number.isFinite(item.cooldownMs)
+        ? item.cooldownMs
+        : definition && Number.isFinite(definition.cooldownMs)
+          ? definition.cooldownMs
+          : 0;
+      if (cooldownMs > 0) {
+        const seconds = cooldownMs / 1000;
+        const precision = seconds >= 10 ? 0 : 1;
+        metaLines.push(`\ucfe8\ub2e4\uc6b4: ${seconds.toFixed(precision)}\ucd08`);
+      }
+
+      const usable = item.usable !== false && (definition ? definition.usable !== false : true);
+      metaLines.push(usable ? "\uc0ac\uc6a9 \uac00\ub2a5" : "\uc0ac\uc6a9 \ubd88\uac00");
+
+      const assignedSlots = [];
+      if (Array.isArray(this.quickSlotData)) {
+        this.quickSlotData.forEach((slot) => {
+          if (slot && slot.itemId === item.id) {
+            assignedSlots.push(slot.index + 1);
+          }
+        });
+      }
+      if (assignedSlots.length) {
+        metaLines.push(`\ud035\uc2ac\ub86f: ${assignedSlots.join(", ")}`);
+      }
+
+      meta.setText(metaLines);
+      meta.setVisible(true);
+    }
   }
 
   ensureOptionsSelectionVisible() {
@@ -1121,7 +1309,7 @@ export default class UIScene extends Phaser.Scene {
       { key: "sfxVolume", label: "SFX Volume", type: "range", min: 0, max: 1, step: 0.1 },
       { key: "bgmVolume", label: "BGM Volume", type: "range", min: 0, max: 1, step: 0.1 },
       { key: "resolutionScale", label: "Resolution Scale", type: "range", min: 0.7, max: 1.1, step: 0.05 },
-      { key: "graphicsQuality", label: "Graphics Quality", type: "choice", values: ["High", "Performance"] },
+      { key: "graphicsQuality", label: "Graphics Quality", type: "choice", values: ["High", "Balanced", "Performance"] },
       { key: "bind.moveLeft", label: "Move Left", type: "binding", action: INPUT_KEYS.LEFT },
       { key: "bind.moveRight", label: "Move Right", type: "binding", action: INPUT_KEYS.RIGHT },
       { key: "bind.moveUp", label: "Move Up", type: "binding", action: INPUT_KEYS.UP },
@@ -1170,6 +1358,7 @@ export default class UIScene extends Phaser.Scene {
   }
 
   shutdown() {
+    debugToggle.off("changed", this.handleDebugHudChange, this);
     if (this.gameScene && this.gameScene.events) {
       this.gameScene.events.off("ui-state", this.handleStateUpdate, this);
       this.gameScene.events.off("ui-panel", this.handlePanelToggle, this);
