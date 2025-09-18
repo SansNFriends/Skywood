@@ -67,6 +67,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
+    this.resetQueued = false;
+
     this.cameras.main.setBackgroundColor("#2a2f3a");
 
     this.saveManager = new SaveManager();
