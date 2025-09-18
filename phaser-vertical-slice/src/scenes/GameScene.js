@@ -9,6 +9,7 @@ import Projectile from "../entities/Projectile.js";
 import LootDrop from "../entities/LootDrop.js";
 import Spawner from "../systems/Spawner.js";
 import SaveManager from "../systems/SaveManager.js";
+
 import debugToggle from "../ui/DebugToggle.js";
 import { GFX, QUALITY_LEVELS, applyGraphicsPreset, updateCurrentZoom } from "../config/graphics.js";
 import {
@@ -17,6 +18,7 @@ import {
   ensureItemIconTexture,
   getItemDefinition
 } from "../data/ItemCatalog.js";
+
 
 const CAMERA_DEADZONE_X = 0.4;
 const CAMERA_DEADZONE_Y = 0.3;
@@ -91,7 +93,6 @@ export default class GameScene extends Phaser.Scene {
     this.resetQueued = false;
     this.lootDrops.clear();
     this.focusedLootDrop = null;
-
     this.cameras.main.setBackgroundColor("#2a2f3a");
     this.cameras.main.roundPixels = true;
 
@@ -337,7 +338,6 @@ export default class GameScene extends Phaser.Scene {
     this.inventory = sourceInventory
       .map((item, index) => this.normalizeInventoryItem(item, index))
       .filter((entry) => entry !== null);
-
     if (!usingSavedInventory) {
       this.sortInventoryEntries();
     }
