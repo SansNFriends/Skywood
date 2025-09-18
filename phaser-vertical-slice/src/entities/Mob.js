@@ -35,6 +35,7 @@ export default class Mob extends Phaser.Physics.Matter.Sprite {
     this.stats = new CombatStats({ maxHP: MOB_CONFIG.maxHP, maxMP: 0 });
     this.hitstunTimer = 0;
     this.knockback = { x: 0, y: 0 };
+    this.isCulled = false;
 
     const body = Bodies.rectangle(0, 0, MOB_CONFIG.width, MOB_CONFIG.height, {
       chamfer: { radius: 6 }
@@ -78,6 +79,7 @@ export default class Mob extends Phaser.Physics.Matter.Sprite {
     this.setAwake(true);
     this.setActive(true);
     this.setVisible(true);
+    this.isCulled = false;
   }
 
   sleepOffscreen() {
@@ -85,6 +87,7 @@ export default class Mob extends Phaser.Physics.Matter.Sprite {
     this.setVelocity(0, 0);
     this.setActive(false);
     this.setVisible(false);
+    this.isCulled = false;
   }
 
   update(time, delta) {
