@@ -16,6 +16,7 @@ import {
   getItemDefinition
 } from "../data/ItemCatalog.js";
 
+
 const CAMERA_DEADZONE_X = 0.4;
 const CAMERA_DEADZONE_Y = 0.3;
 const UI_SYNC_INTERVAL = 120;
@@ -87,6 +88,7 @@ export default class GameScene extends Phaser.Scene {
     this.resetQueued = false;
     this.lootDrops.clear();
     this.focusedLootDrop = null;
+
 
     this.cameras.main.setBackgroundColor("#2a2f3a");
 
@@ -322,11 +324,9 @@ export default class GameScene extends Phaser.Scene {
     this.inventory = sourceInventory
       .map((item, index) => this.normalizeInventoryItem(item, index))
       .filter((entry) => entry !== null);
-
     if (!usingSavedInventory) {
       this.sortInventoryEntries();
     }
-
     const defaultQuickSlots = createDefaultQuickSlots();
     this.quickSlots = defaultQuickSlots.map((slot) => ({ ...slot }));
     if (Array.isArray(restore.quickSlots)) {
