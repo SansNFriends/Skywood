@@ -12,10 +12,12 @@ import SaveManager from "../systems/SaveManager.js";
 const CAMERA_DEADZONE_X = 0.4;
 const CAMERA_DEADZONE_Y = 0.3;
 const UI_SYNC_INTERVAL = 120;
+
 const SAVE_DEBOUNCE_MS = 800;
 const SAVE_RETRY_MS = 4000;
 const AUTO_SAVE_INTERVAL = 15000;
 const PROJECTILE_CULL_PADDING = 220;
+
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -47,6 +49,7 @@ export default class GameScene extends Phaser.Scene {
     this.quickSlots = [];
     this.optionsState = {};
     this.bindingsDirty = false;
+
     this.inventoryDirty = false;
     this.quickSlotsDirty = false;
     this.optionsDirty = false;
@@ -108,11 +111,14 @@ export default class GameScene extends Phaser.Scene {
     this.initializeGameData();
     this.initializeUIBridge();
 
+
     this.markProgressDirty("startup", true);
+
 
     this.perfMeter = new PerfMeter(this);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
+
   }
 
   createEffectPools() {
@@ -154,6 +160,7 @@ export default class GameScene extends Phaser.Scene {
         rect.setVisible(false);
       }
     );
+
   }
 
   createParallax() {
@@ -286,9 +293,11 @@ export default class GameScene extends Phaser.Scene {
   }
 
   initializeGameData() {
+
     const restore = this.restoredData || {};
 
     const defaultInventory = [
+
       {
         id: "skyroot_tonic",
         name: "Skyroot Tonic",
@@ -319,6 +328,7 @@ export default class GameScene extends Phaser.Scene {
       }
     ];
 
+
     const savedInventory = Array.isArray(restore.inventory) ? restore.inventory : null;
     const sourceInventory = savedInventory && savedInventory.length ? savedInventory : defaultInventory;
     this.inventory = sourceInventory.map((item) => ({
@@ -330,11 +340,13 @@ export default class GameScene extends Phaser.Scene {
     }));
 
     const defaultQuickSlots = [
+
       { index: 0, itemId: "skyroot_tonic" },
       { index: 1, itemId: "azure_focus" },
       { index: 2, itemId: null },
       { index: 3, itemId: "wingburst_scroll" }
     ];
+
     this.quickSlots = defaultQuickSlots.map((slot) => ({ ...slot }));
     if (Array.isArray(restore.quickSlots)) {
       restore.quickSlots.forEach((slot) => {
@@ -357,17 +369,20 @@ export default class GameScene extends Phaser.Scene {
     }));
 
     const defaultOptions = {
+
       masterVolume: 0.8,
       sfxVolume: 0.9,
       bgmVolume: 0.7,
       resolutionScale: 1,
       graphicsQuality: "High"
     };
+
     this.optionsState = { ...defaultOptions, ...(restore.options || {}) };
 
     this.inventoryDirty = true;
     this.quickSlotsDirty = true;
     this.optionsDirty = true;
+
     this.bindingsDirty = true;
 
     this.audio.applyMixSettings(this.optionsState);
@@ -378,14 +393,17 @@ export default class GameScene extends Phaser.Scene {
       this.inputManager.applyBindingSnapshot(restore.bindings);
       this.bindingsDirty = true;
     }
+
   }
 
   initializeUIBridge() {
     this.events.on("ui-options-change", this.applyOptionsPatch, this);
     this.events.on("ui-assign-quick-slot", this.handleQuickSlotAssignment, this);
     this.events.on("ui-close-panel", this.handleUIClosePanel, this);
+
     this.events.on("ui-rebind-action", this.handleRebindAction, this);
     this.events.on("ui-reset-bindings", this.handleResetBindings, this);
+
     this.events.once("ui-ready", this.handleUIReady, this);
 
     if (this.scene.isActive && this.scene.isActive("UIScene")) {
@@ -411,7 +429,9 @@ export default class GameScene extends Phaser.Scene {
     this.mobSpawner?.update(time, delta);
     this.updateProjectiles();
     this.handleMobInteractions();
+
     this.updateSaveHeartbeat(delta);
+
     this.updateUIHeartbeat(delta);
   }
 
@@ -458,9 +478,11 @@ export default class GameScene extends Phaser.Scene {
     if (this.menuOpen) {
       this.inputManager?.resetAll?.();
     }
+
     if (this.audio) {
       this.audio.setDuck(this.menuOpen, 0.55, 220);
     }
+
     this.events.emit("ui-menu-state", { open: this.menuOpen });
   }
 
@@ -485,7 +507,9 @@ export default class GameScene extends Phaser.Scene {
     if (!itemId) {
       this.quickSlots[slotIndex] = { index: slotIndex, itemId: null };
       this.quickSlotsDirty = true;
+
       this.markProgressDirty("quickslot");
+
       this.syncUI(true);
       return;
     }
@@ -495,9 +519,11 @@ export default class GameScene extends Phaser.Scene {
     }
     this.quickSlots[slotIndex] = { index: slotIndex, itemId };
     this.quickSlotsDirty = true;
+
     this.markProgressDirty("quickslot");
     this.syncUI(true);
   }
+
 
   handleRebindAction({ action, keyCode }) {
     if (!action || typeof keyCode !== "number" || !Number.isFinite(keyCode)) {
@@ -505,7 +531,9 @@ export default class GameScene extends Phaser.Scene {
     }
     if (this.inputManager?.rebindAction(action, keyCode)) {
       this.bindingsDirty = true;
+
       this.markProgressDirty("bindings");
+
       this.syncUI(true);
     }
   }
@@ -516,7 +544,9 @@ export default class GameScene extends Phaser.Scene {
     }
     this.inputManager.resetAllBindings();
     this.bindingsDirty = true;
+
     this.markProgressDirty("bindings");
+
     this.syncUI(true);
   }
 
@@ -536,7 +566,9 @@ export default class GameScene extends Phaser.Scene {
       this.applyGraphicsQuality(this.optionsState.graphicsQuality);
     }
 
+
     this.markProgressDirty("options");
+
     this.syncUI(true);
   }
 
@@ -567,6 +599,7 @@ export default class GameScene extends Phaser.Scene {
     this.uiSyncTimer = 0;
     this.syncUI();
   }
+
 
   updateSaveHeartbeat(delta) {
     if (!this.saveManager) {
@@ -631,6 +664,7 @@ export default class GameScene extends Phaser.Scene {
     this.systemDirty = true;
   }
 
+
   syncUI(force = false) {
     const payload = this.buildUIState(force);
     this.events.emit("ui-state", payload);
@@ -643,12 +677,14 @@ export default class GameScene extends Phaser.Scene {
     if (force || this.optionsDirty) {
       this.optionsDirty = false;
     }
+
     if (force || this.bindingsDirty) {
       this.bindingsDirty = false;
     }
     if (force || this.systemDirty) {
       this.systemDirty = false;
     }
+
   }
 
   buildUIState(force = false) {
@@ -664,18 +700,22 @@ export default class GameScene extends Phaser.Scene {
         }
       : null;
 
+
     const performance = this.getPerfSnapshot();
 
     const payload = {
       hud,
       performance,
+
       menu: {
         open: this.menuOpen,
         inventoryOpen: this.menuState.inventoryOpen,
         optionsOpen: this.menuState.optionsOpen
       },
+
       map: this.collectMapState(),
       system: this.collectSystemState()
+
     };
 
     if (force || this.quickSlotsDirty) {
@@ -687,6 +727,7 @@ export default class GameScene extends Phaser.Scene {
     if (force || this.optionsDirty) {
       payload.options = { ...this.optionsState };
     }
+
     if (force || this.bindingsDirty) {
       payload.bindings = this.collectBindingState();
     }
@@ -716,6 +757,7 @@ export default class GameScene extends Phaser.Scene {
     }
     return this.inputManager.getBindingSnapshot();
   }
+
 
   collectSaveData() {
     const payload = {
@@ -798,7 +840,9 @@ export default class GameScene extends Phaser.Scene {
     const mobs = [];
     if (this.mobSpawner) {
       this.mobSpawner.getActiveMobs().forEach((mob) => {
+
         if (mob.active && !mob.isCulled) {
+
           mobs.push({ x: mob.x, y: mob.y });
         }
       });
@@ -942,6 +986,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   spawnDamageNumber(x, y, value, color) {
+
     if (!this.damageTextPool) {
       return;
     }
@@ -956,19 +1001,23 @@ export default class GameScene extends Phaser.Scene {
     text.setVisible(true);
     this.tweens.killTweensOf(text);
 
+
     this.tweens.add({
       targets: text,
       y: y - 32,
       alpha: 0,
       duration: 400,
       ease: "Cubic.Out",
+
       onComplete: () => {
         this.damageTextPool.release(text);
       }
+
     });
   }
 
   spawnLoot(x, y) {
+
     if (!this.lootPool) {
       return;
     }
@@ -979,6 +1028,7 @@ export default class GameScene extends Phaser.Scene {
     loot.setActive(true);
     loot.setVisible(true);
     this.tweens.killTweensOf(loot);
+
     this.tweens.add({
       targets: loot,
       y: y + 24,
@@ -992,10 +1042,12 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
+
     if (this.saveManager) {
       this.saveDirty = true;
       this.commitSave();
     }
+
     this.audio?.stopBgm({ fadeOut: 160 });
     this.perfMeter?.destroy();
     this.perfMeter = null;
@@ -1004,6 +1056,7 @@ export default class GameScene extends Phaser.Scene {
     this.parallaxLayers = [];
     this.inputManager = null;
     this.projectiles.clear();
+
     if (this.damageTextPool) {
       this.damageTextPool.forEachLive((text) => text.destroy());
       this.damageTextPool.free.forEach((text) => text.destroy());
@@ -1014,17 +1067,21 @@ export default class GameScene extends Phaser.Scene {
       this.lootPool.free.forEach((rect) => rect.destroy());
       this.lootPool = null;
     }
+
     if (this.scene.isActive && this.scene.isActive("UIScene")) {
       this.scene.stop("UIScene");
     }
     this.events.off("ui-options-change", this.applyOptionsPatch, this);
     this.events.off("ui-assign-quick-slot", this.handleQuickSlotAssignment, this);
     this.events.off("ui-close-panel", this.handleUIClosePanel, this);
+
     this.events.off("ui-rebind-action", this.handleRebindAction, this);
     this.events.off("ui-reset-bindings", this.handleResetBindings, this);
     this.events.off("ui-ready", this.handleUIReady, this);
     this.audio = null;
+
     this.saveManager = null;
     this.restoredData = null;
+
   }
 }

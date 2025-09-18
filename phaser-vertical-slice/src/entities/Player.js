@@ -50,7 +50,7 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     this.hitstunTimer = 0;
     this.knockback = { x: 0, y: 0 };
     this.inputDisabled = false;
-    this.invulnFlashTimer = 0;
+
 
     this.initBody(x, y);
     this.registerCollisions();

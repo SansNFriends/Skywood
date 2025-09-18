@@ -7,6 +7,7 @@ export default class AudioManager {
     this.sfxVolume = 0.9;
     this.bgmVolume = 0.7;
     this.currentBgm = null;
+
     this.currentBgmKey = null;
     this.bgmTween = null;
     this.duckMultiplier = 1;
@@ -28,6 +29,7 @@ export default class AudioManager {
     this.scene.events.on(Phaser.Scenes.Events.SLEEP, this.handleScenePause, this);
     this.scene.events.on(Phaser.Scenes.Events.WAKE, this.handleSceneResume, this);
     this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, this.destroy, this);
+
   }
 
   play(key, spriteKey) {
@@ -55,6 +57,7 @@ export default class AudioManager {
     }
     if (patch.bgmVolume !== undefined) {
       this.bgmVolume = Phaser.Math.Clamp(patch.bgmVolume, 0, 1);
+
     }
     this.updateBgmVolume(240);
   }
@@ -306,6 +309,7 @@ export default class AudioManager {
       this.currentBgm.destroy();
       this.currentBgm = null;
       this.currentBgmKey = null;
+
     }
   }
 }
