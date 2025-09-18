@@ -6,6 +6,7 @@ export default class PerfMeter {
   constructor(scene) {
     this.scene = scene;
     this.elapsed = 0;
+    this.visible = true;
     this.text = scene.add.text(12, 12, "", {
       fontFamily: "Consolas, Courier New, monospace",
       fontSize: "14px",
@@ -22,6 +23,9 @@ export default class PerfMeter {
   }
 
   handleUpdate(_time, delta) {
+    if (!this.visible) {
+      return;
+    }
     this.elapsed += delta;
     if (this.elapsed < UPDATE_INTERVAL_MS) {
       return;
@@ -42,6 +46,8 @@ export default class PerfMeter {
       lines.push(`OBJ ${objects}`);
       lines.push(`MOB ${mobsVisible}/${mobsActive}`);
       lines.push(`PRJ ${projectiles}`);
+      const lootActive = snapshot.loot ?? 0;
+      lines.push(`LUT ${lootActive}`);
       const projectilePool = snapshot.pools?.projectile;
       if (projectilePool) {
         lines.push(
@@ -54,6 +60,12 @@ export default class PerfMeter {
           `TP ${Math.max(0, textPool.live ?? 0)}/${Math.max(0, textPool.free ?? 0)}`
         );
       }
+      const lootPool = snapshot.pools?.loot;
+      if (lootPool) {
+        lines.push(
+          `LP ${Math.max(0, lootPool.live ?? 0)}/${Math.max(0, lootPool.free ?? 0)}`
+        );
+      }
     } else {
       const objectCount = this.scene.children.list.length;
       lines.push(`OBJ ${objectCount}`);
@@ -62,6 +74,11 @@ export default class PerfMeter {
     this.text.setText(lines.join("\n"));
 
     this.elapsed = 0;
+  }
+
+  setVisible(visible) {
+    this.visible = Boolean(visible);
+    this.text?.setVisible(this.visible);
   }
 
   destroy() {
