@@ -51,6 +51,7 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     this.knockback = { x: 0, y: 0 };
     this.inputDisabled = false;
 
+
     this.initBody(x, y);
     this.registerCollisions();
 
@@ -164,6 +165,7 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     }
 
     this.stats.update(delta);
+    this.updateInvulnerabilityVisuals(delta);
     this.updateTimers(delta);
     this.applyMovement(delta);
     this.updateDash(delta);
@@ -320,8 +322,22 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     this.knockback.x = 0;
   }
 
+  updateInvulnerabilityVisuals(delta) {
+    if (this.stats.isInvulnerable()) {
+      this.invulnFlashTimer += delta;
+      const blinkPeriod = 80;
+      const phase = Math.floor(this.invulnFlashTimer / blinkPeriod) % 2;
+      this.setAlpha(phase === 0 ? 0.35 : 0.85);
+    } else {
+      if (this.alpha !== 1) {
+        this.setAlpha(1);
+      }
+      this.invulnFlashTimer = 0;
+    }
+  }
+
   takeDamage(amount, sourceX) {
-    if (!this.stats.takeDamage(amount)) {
+    if (!this.stats.takeDamage(amount, 1000)) {
       return false;
     }
     this.hitstunTimer = HITSTUN_MS;
@@ -330,6 +346,8 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     this.knockback.y = -180;
     this.setIgnoreGravity(false);
     this.setAwake(true);
+    this.invulnFlashTimer = 0;
+    this.setAlpha(0.35);
     return true;
   }
 

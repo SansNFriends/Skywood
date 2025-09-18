@@ -95,6 +95,8 @@ export default class Mob extends Phaser.Physics.Matter.Sprite {
       return;
     }
 
+    this.stats.update(delta);
+
     switch (this.state) {
       case "patrol":
         this.handlePatrol(delta);

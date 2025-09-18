@@ -5,6 +5,8 @@ import { INPUT_KEYS } from "../systems/InputManager.js";
 const HUD_DEPTH = 2000;
 const QUICK_SLOT_COUNT = 4;
 const MINI_MAP_SIZE = { width: 176, height: 112 };
+const OPTIONS_VISIBLE_COUNT = 9;
+
 
 export default class UIScene extends Phaser.Scene {
   constructor() {
@@ -35,6 +37,8 @@ export default class UIScene extends Phaser.Scene {
     this.optionsConfig = this.createOptionsConfig();
     this.optionsVisible = false;
     this.optionsSelectionIndex = 0;
+
+    this.optionsScrollOffset = 0;
     this.navKeys = null;
 
     this.bindingState = [];
@@ -294,7 +298,9 @@ export default class UIScene extends Phaser.Scene {
     const list = this.add
       .text(-200, -90, "", {
         fontFamily: "Rubik, 'Segoe UI', sans-serif",
-        fontSize: "18px",
+
+        fontSize: "16px",
+
         color: "#f2f4ff",
         lineSpacing: 6
       })
@@ -1019,10 +1025,31 @@ export default class UIScene extends Phaser.Scene {
 
     const detailText = selected && selected.description ? selected.description : "\uc0c1\uc138 \uc124\uba85\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.";
     this.inventoryDetailText.setText(detailText);
+  }
 
+  ensureOptionsSelectionVisible() {
+    const total = Array.isArray(this.optionsConfig) ? this.optionsConfig.length : 0;
+    const visibleCount = OPTIONS_VISIBLE_COUNT;
+    if (total <= visibleCount) {
+      this.optionsScrollOffset = 0;
+      return;
+    }
+    const maxOffset = Math.max(0, total - visibleCount);
+    if (this.optionsSelectionIndex < this.optionsScrollOffset) {
+      this.optionsScrollOffset = this.optionsSelectionIndex;
+    } else if (this.optionsSelectionIndex > this.optionsScrollOffset + visibleCount - 1) {
+      this.optionsScrollOffset = this.optionsSelectionIndex - visibleCount + 1;
+    }
+    this.optionsScrollOffset = Phaser.Math.Clamp(this.optionsScrollOffset, 0, maxOffset);
   }
 
   refreshOptionsList() {
+    if (!this.optionsListText) {
+      return;
+    }
+
+    this.ensureOptionsSelectionVisible();
+
     const lines = this.optionsConfig.map((config, index) => {
 
       const selector = index === this.optionsSelectionIndex ? "\u25b6" : " ";
@@ -1034,7 +1061,19 @@ export default class UIScene extends Phaser.Scene {
       const value = this.formatOptionValue(config);
       return `${selector} ${config.label}: ${value}`;
     });
-    this.optionsListText.setText(lines);
+
+    const start = this.optionsScrollOffset;
+    const end = Math.min(lines.length, start + OPTIONS_VISIBLE_COUNT);
+    const visibleLines = lines.slice(start, end);
+
+    if (start > 0) {
+      visibleLines.unshift("⋮");
+    }
+    if (end < lines.length) {
+      visibleLines.push("⋮");
+    }
+
+    this.optionsListText.setText(visibleLines);
   }
 
   formatOptionValue(config) {

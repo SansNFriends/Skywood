@@ -36,7 +36,6 @@ export default class GameScene extends Phaser.Scene {
     this.lootPool = null;
     this.mobSpawner = null;
 
-
     this.saveManager = null;
     this.restoredData = null;
     this.saveDirty = false;
@@ -380,7 +379,6 @@ export default class GameScene extends Phaser.Scene {
 
     this.optionsState = { ...defaultOptions, ...(restore.options || {}) };
 
-
     this.inventoryDirty = true;
     this.quickSlotsDirty = true;
     this.optionsDirty = true;
@@ -704,7 +702,6 @@ export default class GameScene extends Phaser.Scene {
 
 
     const performance = this.getPerfSnapshot();
-
 
     const payload = {
       hud,
