@@ -16,7 +16,9 @@ const SAVE_DEBOUNCE_MS = 800;
 const SAVE_RETRY_MS = 4000;
 const AUTO_SAVE_INTERVAL = 15000;
 const PROJECTILE_CULL_PADDING = 220;
+
 const ATTACK_COOLDOWN_MS = 300;
+
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -31,8 +33,10 @@ export default class GameScene extends Phaser.Scene {
     this.audio = null;
     this.projectilePool = null;
     this.projectiles = new Set();
+
     this.primaryAttackCooldown = 0;
     this.secondaryAttackCooldown = 0;
+
     this.damageTextPool = null;
     this.lootPool = null;
     this.mobSpawner = null;
@@ -57,7 +61,9 @@ export default class GameScene extends Phaser.Scene {
     this.menuState = { inventoryOpen: false, optionsOpen: false };
     this.menuOpen = false;
     this.lastFrameTime = 0;
+
     this.resetQueued = false;
+
   }
 
   create() {
@@ -390,7 +396,9 @@ export default class GameScene extends Phaser.Scene {
     this.events.on("ui-close-panel", this.handleUIClosePanel, this);
     this.events.on("ui-rebind-action", this.handleRebindAction, this);
     this.events.on("ui-reset-bindings", this.handleResetBindings, this);
+
     this.events.on("ui-request-reset", this.handleUIResetRequest, this);
+
     this.events.once("ui-ready", this.handleUIReady, this);
 
     if (this.scene.isActive && this.scene.isActive("UIScene")) {
@@ -408,7 +416,6 @@ export default class GameScene extends Phaser.Scene {
     this.lastFrameTime = delta;
     this.updateParallax();
     this.handleUtilityInput();
-
     this.primaryAttackCooldown = Math.max(0, this.primaryAttackCooldown - delta);
     this.secondaryAttackCooldown = Math.max(0, this.secondaryAttackCooldown - delta);
 
@@ -1086,6 +1093,7 @@ export default class GameScene extends Phaser.Scene {
     this.events.off("ui-rebind-action", this.handleRebindAction, this);
     this.events.off("ui-reset-bindings", this.handleResetBindings, this);
     this.events.off("ui-request-reset", this.handleUIResetRequest, this);
+
     this.events.off("ui-ready", this.handleUIReady, this);
     this.audio = null;
     this.saveManager = null;

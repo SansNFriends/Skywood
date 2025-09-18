@@ -1,5 +1,6 @@
 # Skywood Legends Slice
 
+
 Skywood Legends Slice는 Phaser 3와 Matter.js를 기반으로 제작된 2D 횡스크롤 액션 RPG 수직 슬라이스입니다. "메이플스토리"와 유사한 조작감과 경쾌한 전투를 목표로 하되, 모든 자산과 명칭은 오리지널로 구성되어 있습니다. 데스크톱 브라우저에서 60FPS, 프레임타임 16.7ms 내외의 안정적인 성능과 입력 지연 최소화를 지향합니다.
 
 ## 폴더 구조
@@ -14,6 +15,7 @@ phaser-vertical-slice/
 ## 실행 방법
 
 1. 정적 서버를 실행합니다. Python이 기본 제공되므로 아래 명령으로 충분합니다.
+
    ```bash
    cd phaser-vertical-slice
    python3 -m http.server 5173

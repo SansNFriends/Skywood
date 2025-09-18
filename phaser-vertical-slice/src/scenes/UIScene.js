@@ -48,6 +48,7 @@ export default class UIScene extends Phaser.Scene {
     this.bugOverlayVisible = false;
     this.bugToggleKey = null;
     this.resetInProgress = false;
+
   }
 
   init(data) {
@@ -543,6 +544,7 @@ export default class UIScene extends Phaser.Scene {
       return "저장 상태: 대기 중";
     })();
 
+
     const lines = [statusLine, ""];
     if (this.resetInProgress) {
       lines.push("• 저장 데이터를 초기화하는 중입니다. 잠시 후 게임이 다시 시작됩니다.");
@@ -554,8 +556,10 @@ export default class UIScene extends Phaser.Scene {
     lines.push("• 개발자 도구 콘솔 오류와 화면 스크린샷을 첨부하면 빠르게 재현할 수 있습니다.");
     lines.push("• F8로 이 패널을 열고 ESC로 닫습니다.");
 
+
     this.bugOverlayText.setText(lines.join("\n"));
   }
+
 
   requestProgressReset() {
     if (this.resetInProgress) {
@@ -583,6 +587,7 @@ export default class UIScene extends Phaser.Scene {
       if (!mergedSave.available) {
         message = "⚠ 저장 불가: 브라우저 저장소 차단";
         color = "#ff9176";
+
         this.resetInProgress = false;
       } else if (mergedSave.state === "error") {
         message = "⚠ 저장 실패: 콘솔 로그 확인";
@@ -598,6 +603,7 @@ export default class UIScene extends Phaser.Scene {
       } else if (mergedSave.dirty) {
         message = "저장 대기 중...";
         this.resetInProgress = false;
+
       }
       const infoLines = [message, "F8: 버그 리포트 패널"];
       this.systemStatusText.setText(infoLines);
@@ -940,6 +946,7 @@ export default class UIScene extends Phaser.Scene {
   }
 
   handleGlobalKeydown(event) {
+
     if (event.repeat) {
       return;
     }
@@ -961,6 +968,7 @@ export default class UIScene extends Phaser.Scene {
     }
 
     if (!this.bindingListenAction) {
+
       return;
     }
     if (event.key === "Escape" || event.key === "Esc") {
