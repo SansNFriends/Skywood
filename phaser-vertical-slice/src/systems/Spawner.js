@@ -11,6 +11,7 @@ const DEFAULT_OPTIONS = {
 
 const MOB_CATEGORY = 0x0004;
 const TERRAIN_CATEGORY = 0x0002;
+const CULL_PADDING = 280;
 
 export default class Spawner {
   constructor(scene, options = {}) {
@@ -42,11 +43,37 @@ export default class Spawner {
       this.timer = this.options.delay;
     }
 
+    const camera = this.scene.cameras?.main;
+    const view = camera ? camera.worldView : null;
+    const left = view ? view.x - CULL_PADDING : Number.NEGATIVE_INFINITY;
+    const right = view ? view.right + CULL_PADDING : Number.POSITIVE_INFINITY;
+    const top = view ? view.y - CULL_PADDING : Number.NEGATIVE_INFINITY;
+    const bottom = view ? view.bottom + CULL_PADDING : Number.POSITIVE_INFINITY;
+
     [...this.activeMobs].forEach((mob) => {
       if (!mob.active) {
         this.activeMobs.delete(mob);
         return;
       }
+
+      const inside = mob.x >= left && mob.x <= right && mob.y >= top && mob.y <= bottom;
+      if (!inside) {
+        if (!mob.isCulled) {
+          mob.isCulled = true;
+          mob.setVisible(false);
+          mob.setActive(false);
+          mob.setAwake(false);
+        }
+        return;
+      }
+
+      if (mob.isCulled) {
+        mob.isCulled = false;
+        mob.setActive(true);
+        mob.setVisible(true);
+        mob.setAwake(true);
+      }
+
       mob.update(time, delta);
       if (mob.y > this.scene.map.heightInPixels + 200) {
         this.despawn(mob);
@@ -82,5 +109,19 @@ export default class Spawner {
 
   getActiveMobs() {
     return [...this.activeMobs];
+  }
+
+  getManagedCount() {
+    return this.activeMobs.size;
+  }
+
+  getVisibleCount() {
+    let count = 0;
+    this.activeMobs.forEach((mob) => {
+      if (mob.active && !mob.isCulled) {
+        count += 1;
+      }
+    });
+    return count;
   }
 }

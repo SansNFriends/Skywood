@@ -19,7 +19,8 @@ const PLAYER_CONFIG = {
   maxJumps: 2,
   dashSpeed: 450,
   dashDuration: 420,
-  dashCooldown: 520
+  dashCooldown: 520,
+  hitInvulnerability: 2000
 };
 
 const STEP_SCALE = 1 / 60;
@@ -43,12 +44,15 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     this.dashTimer = 0;
     this.dashCooldownTimer = 0;
     this.allowDashReset = true;
+    this.dashDirection = 0;
     this.groundContacts = new Set();
     this.runAnimElapsed = 0;
     this.runFrameToggle = false;
     this.stats = new CombatStats({ maxHP: 150, maxMP: 60 });
     this.hitstunTimer = 0;
     this.knockback = { x: 0, y: 0 };
+    this.inputDisabled = false;
+    this.invulnFlashTimer = 0;
 
     this.initBody(x, y);
     this.registerCollisions();
@@ -163,6 +167,7 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     }
 
     this.stats.update(delta);
+    this.updateInvulnerabilityVisuals(delta);
     this.updateTimers(delta);
     this.applyMovement(delta);
     this.updateDash(delta);
@@ -180,7 +185,7 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
   }
 
   handleInput() {
-    if (!this.input) {
+    if (!this.input || this.inputDisabled) {
       return;
     }
 
@@ -227,6 +232,11 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
       return;
     }
 
+    if (this.inputDisabled) {
+      this.setVelocityX(0);
+      return;
+    }
+
     this.handleInput();
 
     let move = 0;
@@ -264,7 +274,7 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
   }
 
   tryDash() {
-    if (this.isDashing || this.dashCooldownTimer > 0 || this.hitstunTimer > 0) {
+    if (this.inputDisabled || this.isDashing || this.dashCooldownTimer > 0 || this.hitstunTimer > 0) {
       return;
     }
 
@@ -278,11 +288,12 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     const dashDir = direction !== 0 ? direction : this.facing;
 
     this.isDashing = true;
+    this.dashDirection = dashDir;
     this.dashTimer = PLAYER_CONFIG.dashDuration;
     this.dashCooldownTimer = PLAYER_CONFIG.dashCooldown + PLAYER_CONFIG.dashDuration;
-    this.setIgnoreGravity(true);
     this.setAwake(true);
-    this.setVelocity(toStep(PLAYER_CONFIG.dashSpeed * dashDir), 0);
+    const currentVelY = this.body ? this.body.velocity.y : 0;
+    this.setVelocity(toStep(PLAYER_CONFIG.dashSpeed * dashDir), currentVelY);
   }
 
   updateDash(delta) {
@@ -297,10 +308,16 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
       return;
     }
 
+    const dashVelocity = toStep(PLAYER_CONFIG.dashSpeed * this.dashDirection);
+    this.setVelocityX(dashVelocity);
+    if (this.isOnGround && this.body && this.body.velocity.y > 0) {
+      this.setVelocityY(0);
+    }
+
     this.dashTimer -= delta;
     if (this.dashTimer <= 0) {
       this.isDashing = false;
-      this.setIgnoreGravity(false);
+      this.dashDirection = 0;
       if (!this.isOnGround) {
         this.allowDashReset = false;
       }
@@ -314,8 +331,22 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     this.knockback.x = 0;
   }
 
+  updateInvulnerabilityVisuals(delta) {
+    if (this.stats.isInvulnerable()) {
+      this.invulnFlashTimer += delta;
+      const blinkPeriod = 80;
+      const phase = Math.floor(this.invulnFlashTimer / blinkPeriod) % 2;
+      this.setAlpha(phase === 0 ? 0.35 : 0.85);
+    } else {
+      if (this.alpha !== 1) {
+        this.setAlpha(1);
+      }
+      this.invulnFlashTimer = 0;
+    }
+  }
+
   takeDamage(amount, sourceX) {
-    if (!this.stats.takeDamage(amount)) {
+    if (!this.stats.takeDamage(amount, PLAYER_CONFIG.hitInvulnerability)) {
       return false;
     }
     this.hitstunTimer = HITSTUN_MS;
@@ -324,6 +355,8 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     this.knockback.y = -180;
     this.setIgnoreGravity(false);
     this.setAwake(true);
+    this.invulnFlashTimer = 0;
+    this.setAlpha(0.35);
     return true;
   }
 
@@ -368,5 +401,13 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     }
 
     super.setFrame(frameKey, false, false);
+  }
+
+  setInputEnabled(enabled) {
+    this.inputDisabled = !enabled;
+    if (!enabled) {
+      this.jumpBufferMs = 0;
+      this.setVelocityX(0);
+    }
   }
 }

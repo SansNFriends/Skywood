@@ -2,6 +2,7 @@
 import BootScene from "./scenes/BootScene.js";
 import PreloadScene from "./scenes/PreloadScene.js";
 import GameScene from "./scenes/GameScene.js";
+import UIScene from "./scenes/UIScene.js";
 
 const GAME_WIDTH = 1280;
 const GAME_HEIGHT = 720;
@@ -43,7 +44,7 @@ const config = {
     min: 30,
     forceSetTimeOut: false
   },
-  scene: [BootScene, PreloadScene, GameScene]
+  scene: [BootScene, PreloadScene, GameScene, UIScene]
 };
 
 function bootGame() {

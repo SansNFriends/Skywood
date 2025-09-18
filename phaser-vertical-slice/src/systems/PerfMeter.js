@@ -29,9 +29,37 @@ export default class PerfMeter {
 
     const fps = this.scene.game.loop.actualFps;
     const frameMs = this.scene.game.loop.delta;
-    const objectCount = this.scene.children.list.length;
+    const snapshot =
+      typeof this.scene.getPerfSnapshot === "function" ? this.scene.getPerfSnapshot() : null;
 
-    this.text.setText(`FPS ${fps.toFixed(1)}\nMS ${frameMs.toFixed(2)}\nOBJS ${objectCount}`);
+    const lines = [`FPS ${fps.toFixed(1)}`, `MS ${frameMs.toFixed(2)}`];
+
+    if (snapshot) {
+      const objects = snapshot.objects ?? this.scene.children.list.length;
+      const mobsVisible = snapshot.mobsVisible ?? snapshot.mobs ?? 0;
+      const mobsActive = snapshot.mobsActive ?? mobsVisible;
+      const projectiles = snapshot.projectiles ?? 0;
+      lines.push(`OBJ ${objects}`);
+      lines.push(`MOB ${mobsVisible}/${mobsActive}`);
+      lines.push(`PRJ ${projectiles}`);
+      const projectilePool = snapshot.pools?.projectile;
+      if (projectilePool) {
+        lines.push(
+          `PP ${Math.max(0, projectilePool.live ?? 0)}/${Math.max(0, projectilePool.free ?? 0)}`
+        );
+      }
+      const textPool = snapshot.pools?.damageText;
+      if (textPool) {
+        lines.push(
+          `TP ${Math.max(0, textPool.live ?? 0)}/${Math.max(0, textPool.free ?? 0)}`
+        );
+      }
+    } else {
+      const objectCount = this.scene.children.list.length;
+      lines.push(`OBJ ${objectCount}`);
+    }
+
+    this.text.setText(lines.join("\n"));
 
     this.elapsed = 0;
   }
