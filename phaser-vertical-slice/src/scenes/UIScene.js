@@ -47,6 +47,8 @@ export default class UIScene extends Phaser.Scene {
     this.bugOverlayText = null;
     this.bugOverlayVisible = false;
     this.bugToggleKey = null;
+    this.resetInProgress = false;
+
   }
 
   init(data) {
@@ -542,16 +544,34 @@ export default class UIScene extends Phaser.Scene {
       return "저장 상태: 대기 중";
     })();
 
-    const lines = [
-      statusLine,
-      "",
-      "• 증상이 발생한 입력/행동 순서를 단계별로 적어주세요.",
-      "• 브라우저, 운영체제, FPS(좌측 상단)을 기록하세요.",
-      "• 개발자 도구 콘솔 오류와 화면 스크린샷을 첨부하면 빠르게 재현할 수 있습니다.",
-      "• F8로 이 패널을 열고 ESC로 닫습니다."
-    ];
+
+    const lines = [statusLine, ""];
+    if (this.resetInProgress) {
+      lines.push("• 저장 데이터를 초기화하는 중입니다. 잠시 후 게임이 다시 시작됩니다.");
+    } else {
+      lines.push("• Shift+R을 눌러 저장 데이터를 삭제하고 처음부터 다시 시작할 수 있습니다.");
+    }
+    lines.push("• 증상이 발생한 입력/행동 순서를 단계별로 적어주세요.");
+    lines.push("• 브라우저, 운영체제, FPS(좌측 상단)을 기록하세요.");
+    lines.push("• 개발자 도구 콘솔 오류와 화면 스크린샷을 첨부하면 빠르게 재현할 수 있습니다.");
+    lines.push("• F8로 이 패널을 열고 ESC로 닫습니다.");
+
 
     this.bugOverlayText.setText(lines.join("\n"));
+  }
+
+
+  requestProgressReset() {
+    if (this.resetInProgress) {
+      return;
+    }
+    this.resetInProgress = true;
+    if (this.systemStatusText) {
+      this.systemStatusText.setText(["저장 초기화를 준비 중...", "F8: 버그 리포트 패널"]);
+      this.systemStatusText.setColor("#d3d7ff");
+    }
+    this.refreshBugOverlay();
+    this.emitGameEvent("ui-request-reset");
   }
 
   updateSystemStatus(system) {
@@ -567,13 +587,23 @@ export default class UIScene extends Phaser.Scene {
       if (!mergedSave.available) {
         message = "⚠ 저장 불가: 브라우저 저장소 차단";
         color = "#ff9176";
+
+        this.resetInProgress = false;
       } else if (mergedSave.state === "error") {
         message = "⚠ 저장 실패: 콘솔 로그 확인";
         color = "#ff9176";
+        this.resetInProgress = false;
+      } else if (mergedSave.state === "reset") {
+        message = "저장 데이터를 초기화했습니다. 게임이 재시작됩니다...";
+        color = "#d3d7ff";
+        this.resetInProgress = true;
       } else if (mergedSave.state === "success" && mergedSave.timestamp) {
         message = `저장 완료 ${this.formatTimestamp(mergedSave.timestamp)}`;
+        this.resetInProgress = false;
       } else if (mergedSave.dirty) {
         message = "저장 대기 중...";
+        this.resetInProgress = false;
+
       }
       const infoLines = [message, "F8: 버그 리포트 패널"];
       this.systemStatusText.setText(infoLines);
@@ -916,10 +946,29 @@ export default class UIScene extends Phaser.Scene {
   }
 
   handleGlobalKeydown(event) {
-    if (!this.bindingListenAction) {
+
+    if (event.repeat) {
       return;
     }
-    if (event.repeat) {
+
+    if (this.bugOverlayVisible) {
+      const key = typeof event.key === "string" ? event.key.toLowerCase() : "";
+      const keyCode = typeof event.keyCode === "number" ? event.keyCode : event.which;
+      const isResetKey = key === "r" || keyCode === Phaser.Input.Keyboard.KeyCodes.R;
+      if (isResetKey && event.shiftKey) {
+        if (typeof event.preventDefault === "function") {
+          event.preventDefault();
+        }
+        if (typeof event.stopPropagation === "function") {
+          event.stopPropagation();
+        }
+        this.requestProgressReset();
+        return;
+      }
+    }
+
+    if (!this.bindingListenAction) {
+
       return;
     }
     if (event.key === "Escape" || event.key === "Esc") {

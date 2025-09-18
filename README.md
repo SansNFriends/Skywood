@@ -1,54 +1,60 @@
 # Skywood Legends Slice
 
-Skywood Legends Slice is a Phaser 3 + Matter.js vertical slice that emulates a high-performance "MapleStory-style" action RPG. The project targets 60 FPS gameplay, responsive controls, and minimal garbage collection pressure while running entirely in the browser.
 
-## Repository Layout
+Skywood Legends Slice는 Phaser 3와 Matter.js를 기반으로 제작된 2D 횡스크롤 액션 RPG 수직 슬라이스입니다. "메이플스토리"와 유사한 조작감과 경쾌한 전투를 목표로 하되, 모든 자산과 명칭은 오리지널로 구성되어 있습니다. 데스크톱 브라우저에서 60FPS, 프레임타임 16.7ms 내외의 안정적인 성능과 입력 지연 최소화를 지향합니다.
+
+## 폴더 구조
 
 ```
 phaser-vertical-slice/
-  index.html               # Entry point that bootstraps Phaser in module mode
-  public/                  # Static assets (placeholder art, audio sprite, tilemaps)
-  src/                     # Game source (scenes, entities, systems)
+  index.html               # Phaser 모듈 엔트리
+  public/                  # 이미지·타일맵·오디오 등 정적 자산
+  src/                     # 게임 소스 코드(씬, 시스템, 엔티티)
 ```
 
-## Getting Started
+## 실행 방법
 
-1. Install any static HTTP server you prefer. Python is preinstalled in the container, so the simplest option is:
+1. 정적 서버를 실행합니다. Python이 기본 제공되므로 아래 명령으로 충분합니다.
+
    ```bash
    cd phaser-vertical-slice
    python3 -m http.server 5173
    ```
-2. In Codex Web (or your local browser) open the forwarded preview URL and append `/index.html`, e.g. `https://<preview-host>/index.html`.
-3. The game auto-loads assets and starts in the GameScene. Press `I` for the inventory, `O` for the options menu, and `F8` for the bug report overlay.
+2. Codex Web(또는 사용 중인 에디터)의 포트 포워딩/미리보기 기능에서 `5173` 포트를 열고, 생성된 미리보기 URL 뒤에 `/index.html`을 붙여 접속합니다.
+3. 게임이 자동으로 로드되며 바로 GameScene에서 플레이가 시작됩니다. `I`로 인벤토리, `O`로 옵션 패널, `F8`로 버그 리포트 오버레이를 열 수 있습니다.
 
-Phaser is loaded via the local `public/vendor/phaser.esm.js` bundle with a CDN fallback, so no package installation is required.
+Phaser는 `public/vendor/phaser.esm.js` 번들을 우선 로드하고 실패 시 CDN으로 폴백하므로 별도의 패키지 설치가 필요하지 않습니다.
 
-## Build & Deployment Notes
+## 핵심 시스템
 
-- The project is fully static. To deploy, copy the `phaser-vertical-slice` directory to any static web host (GitHub Pages, Netlify, etc.). Ensure the host serves the directory root so `/public/...` asset URLs resolve correctly.
-- When serving from a subdirectory, keep the folder structure intact (`index.html` next to `public/` and `src/`). The asset loader derives absolute paths from the current page URL, so no additional configuration is needed.
-- For production hosting, enable HTTP compression where possible; the asset bundle is composed of lightweight placeholder textures and audio sprites.
+- **씬 파이프라인**: Boot → Preload → Game → UI 순서로 실행되며, GameScene이 월드와 전투, UIScene이 HUD와 패널을 담당합니다.
+- **플레이어 컨트롤러**: 이동/점프/이단점프/대시, 코요테 타임, 점프 버퍼, 사다리/로프 이동, 피격 무적, 넉백을 지원합니다.
+- **전투**: `J` 근접 공격(콤보 기반 피격 판정), `K` 투사체 발사. 투사체는 중력 영향을 받지 않고 일정한 속도로 전방을 가릅니다.
+- **몬스터/스포너**: 순찰·추격·공격·피격·사망 상태를 갖춘 AI와 풀링 기반 스포너, 드롭 연출을 포함합니다.
+- **UI**: HP/MP 바, 대시 상태, 미니맵, 퀵슬롯, 인벤토리, 옵션 패널(그래픽/해상도/볼륨/키 리바인딩)을 통합했습니다.
 
-## Save System
+## 저장 및 초기화
 
-- Progress (player position, HP/MP, inventory, quick slots, options, key bindings) is saved automatically to `localStorage` under the key `skywood.save.slot0`.
-- Autosave triggers after any menu change (inventory/options/bindings), player damage, and every 15 seconds during gameplay. A status banner appears in the lower-left HUD and the bug report overlay includes the latest save information.
-- If the browser blocks storage (private mode, quota exceeded), the UI shows a warning so you can notify QA or adjust permissions.
+- 진행 상황(좌표, HP/MP, 인벤토리, 퀵슬롯, 옵션, 키 바인딩)은 `localStorage`의 `skywood.save.slot0` 키에 자동 저장됩니다.
+- 인벤토리/옵션/바인딩 변경, 플레이어 피격, 15초 간격의 자동 저장 타이머가 모두 저장을 트리거합니다.
+- `F8`로 버그 리포트 패널을 연 뒤 `Shift+R`을 누르면 저장 데이터를 삭제하고 게임이 즉시 재시작되어 완전 초기화 상태로 돌아갑니다.
+- 브라우저가 저장소 접근을 차단하면 HUD 하단 경고와 버그 리포트 패널에 경고 문구가 표시됩니다.
 
-## Debug & QA Tools
+## 디버그 & QA 도구
 
-- **Performance HUD:** Displays FPS, frame time, live object count, mob visibility, projectile totals, and pool usage to help maintain the 16.7 ms frame budget.
-- **Bug Report Overlay:** Press `F8` to open an in-game checklist for reporting issues. The overlay summarises the latest save status and reminders for reproducible bug reports.
-- **PerfMeter Overlay:** The in-game PerfMeter (top-left) mirrors core metrics for quick profiling during development.
+- **PerfMeter**: 좌측 상단에 FPS, 프레임타임, 오브젝트 수, 몬스터/투사체 카운트, 풀 사용량을 표시합니다.
+- **버그 리포트 오버레이(F8)**: 최근 저장 상태, 재현 가이드, 초기화 단축키 안내를 제공합니다. ESC로 닫을 수 있습니다.
+- **시스템 배너**: 화면 좌하단에서 저장 성공/실패, 초기화 진행 상황 등을 즉시 확인할 수 있습니다.
 
-## Default Controls
+## 기본 조작(기본값)
 
-- Move: Arrow keys or `A/D`
-- Jump: `Space` or `W`
-- Dash: `Shift`
-- Primary / Secondary attack: `J` / `K`
-- Interact: `E`
-- Inventory: `I`
-- Options: `O`
+- 이동: 방향키 또는 `A/D`
+- 점프: `Space` 또는 `W`
+- 대시: `Shift`
+- 근접 공격: `J`
+- 원거리 공격: `K`
+- 상호작용: `E`
+- 인벤토리: `I`
+- 옵션: `O`
 
-All bindings can be remapped from the options menu; resets and new bindings are persisted automatically.
+모든 키 바인딩은 옵션 메뉴에서 즉시 변경할 수 있으며, 변경 사항은 자동 저장됩니다.

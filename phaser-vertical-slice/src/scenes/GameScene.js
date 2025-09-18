@@ -17,6 +17,9 @@ const SAVE_RETRY_MS = 4000;
 const AUTO_SAVE_INTERVAL = 15000;
 const PROJECTILE_CULL_PADDING = 220;
 
+const ATTACK_COOLDOWN_MS = 300;
+
+
 export default class GameScene extends Phaser.Scene {
   constructor() {
     super({ key: "GameScene" });
@@ -30,6 +33,10 @@ export default class GameScene extends Phaser.Scene {
     this.audio = null;
     this.projectilePool = null;
     this.projectiles = new Set();
+
+    this.primaryAttackCooldown = 0;
+    this.secondaryAttackCooldown = 0;
+
     this.damageTextPool = null;
     this.lootPool = null;
     this.mobSpawner = null;
@@ -54,6 +61,9 @@ export default class GameScene extends Phaser.Scene {
     this.menuState = { inventoryOpen: false, optionsOpen: false };
     this.menuOpen = false;
     this.lastFrameTime = 0;
+
+    this.resetQueued = false;
+
   }
 
   create() {
@@ -386,6 +396,9 @@ export default class GameScene extends Phaser.Scene {
     this.events.on("ui-close-panel", this.handleUIClosePanel, this);
     this.events.on("ui-rebind-action", this.handleRebindAction, this);
     this.events.on("ui-reset-bindings", this.handleResetBindings, this);
+
+    this.events.on("ui-request-reset", this.handleUIResetRequest, this);
+
     this.events.once("ui-ready", this.handleUIReady, this);
 
     if (this.scene.isActive && this.scene.isActive("UIScene")) {
@@ -403,6 +416,8 @@ export default class GameScene extends Phaser.Scene {
     this.lastFrameTime = delta;
     this.updateParallax();
     this.handleUtilityInput();
+    this.primaryAttackCooldown = Math.max(0, this.primaryAttackCooldown - delta);
+    this.secondaryAttackCooldown = Math.max(0, this.secondaryAttackCooldown - delta);
 
     if (!this.menuOpen) {
       this.handleCombatInput();
@@ -518,6 +533,49 @@ export default class GameScene extends Phaser.Scene {
     this.bindingsDirty = true;
     this.markProgressDirty("bindings");
     this.syncUI(true);
+  }
+
+  handleUIResetRequest() {
+    if (this.resetQueued) {
+      return;
+    }
+    this.resetQueued = true;
+
+    let status = "reset";
+    const timestamp = Date.now();
+    if (this.saveManager) {
+      const cleared = this.saveManager.clear();
+      if (!this.saveManager.isAvailable()) {
+        status = "disabled";
+      } else if (!cleared) {
+        status = "error";
+      }
+    }
+
+    this.saveDirty = false;
+    this.saveCooldown = 0;
+    this.autoSaveTimer = 0;
+    this.lastSaveReason = status === "reset" ? "reset" : status === "disabled" ? "storage-disabled" : "reset-failed";
+    this.lastSaveStatus = { state: status, timestamp };
+    this.menuState.inventoryOpen = false;
+    this.menuState.optionsOpen = false;
+    this.menuOpen = false;
+    if (this.player) {
+      this.player.setInputEnabled(false);
+    }
+    if (this.audio) {
+      this.audio.stopBgm({ fadeOut: 120 });
+    }
+
+    this.systemDirty = true;
+    this.syncUI(true);
+
+    this.time.delayedCall(180, () => {
+      if (this.scene.isActive && this.scene.isActive("UIScene")) {
+        this.scene.stop("UIScene");
+      }
+      this.scene.restart();
+    });
   }
 
   applyOptionsPatch(patch) {
@@ -818,25 +876,37 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (this.inputManager.wasJustPressed(INPUT_KEYS.ATTACK_PRIMARY)) {
+    if (this.primaryAttackCooldown <= 0 && this.inputManager.wasJustPressed(INPUT_KEYS.ATTACK_PRIMARY)) {
       this.doMelee();
+      this.primaryAttackCooldown = ATTACK_COOLDOWN_MS;
     }
-    if (this.inputManager.wasJustPressed(INPUT_KEYS.ATTACK_SECONDARY)) {
+    if (this.secondaryAttackCooldown <= 0 && this.inputManager.wasJustPressed(INPUT_KEYS.ATTACK_SECONDARY)) {
       this.fireProjectile();
+      this.secondaryAttackCooldown = ATTACK_COOLDOWN_MS;
     }
   }
 
   doMelee() {
     const dir = this.player.facing >= 0 ? 1 : -1;
-    const x = this.player.x + dir * 30;
-    const y = this.player.y - 10;
-    const hitRect = new Phaser.Geom.Rectangle(x - 26, y - 24, 52, 48);
+    const playerBounds = this.player.getBounds();
+    const frontX = dir > 0 ? playerBounds.right : playerBounds.left;
+    const centerY = playerBounds.centerY - 6;
+    const hitWidth = 64;
+    const hitHeight = 48;
+    const hitRectX = dir > 0 ? frontX : frontX - hitWidth;
+    const hitRect = new Phaser.Geom.Rectangle(hitRectX, centerY - hitHeight / 2, hitWidth, hitHeight);
 
     const swing = this.add.graphics();
-    swing.fillStyle(0xffcc66, 0.85);
-    swing.fillRoundedRect(hitRect.x, hitRect.y, hitRect.width, hitRect.height, 8);
     swing.setDepth(50);
-    this.tweens.add({ targets: swing, alpha: 0, duration: 120, onComplete: () => swing.destroy() });
+    const baseX = dir > 0 ? frontX + 8 : frontX - 8;
+    const tipX = dir > 0 ? frontX + hitWidth + 18 : frontX - hitWidth - 18;
+    const topY = centerY - hitHeight / 2;
+    const bottomY = centerY + hitHeight / 2;
+    swing.fillStyle(0xffc977, 0.9);
+    swing.fillTriangle(baseX, topY, baseX, bottomY, tipX, centerY);
+    swing.lineStyle(2, 0xfff0c1, 0.95);
+    swing.strokeTriangle(baseX, topY, baseX, bottomY, tipX, centerY);
+    this.tweens.add({ targets: swing, alpha: 0, duration: 140, onComplete: () => swing.destroy() });
 
     this.applyDamageZone(hitRect, 24, this.player.x);
     this.audio?.play(ASSET_KEYS.AUDIO.CORE_SFX, "attack");
@@ -1022,6 +1092,8 @@ export default class GameScene extends Phaser.Scene {
     this.events.off("ui-close-panel", this.handleUIClosePanel, this);
     this.events.off("ui-rebind-action", this.handleRebindAction, this);
     this.events.off("ui-reset-bindings", this.handleResetBindings, this);
+    this.events.off("ui-request-reset", this.handleUIResetRequest, this);
+
     this.events.off("ui-ready", this.handleUIReady, this);
     this.audio = null;
     this.saveManager = null;
