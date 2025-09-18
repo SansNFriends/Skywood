@@ -154,6 +154,72 @@ export default class InputManager {
   }
 
 
+  setBinding(action, codes) {
+    const uniqueCodes = Array.from(
+      new Set(
+        (codes || [])
+          .map((code) => resolveKeyCode(code))
+          .filter((value) => typeof value === "number" && Number.isFinite(value))
+      )
+    );
+
+    const existing = this.bindings.get(action);
+    if (existing) {
+      existing.forEach((key) => key.destroy());
+    }
+
+    const keyObjects = uniqueCodes.map((code) => this.keyboard.addKey(code));
+    this.bindings.set(action, keyObjects);
+    this.bindingCodes.set(action, uniqueCodes);
+    keyStateCache.set(action, false);
+    this.justPressed.delete(action);
+    this.justReleased.delete(action);
+  }
+
+  rebindAction(action, primaryCode) {
+    if (!action) {
+      return false;
+    }
+    const resolved = resolveKeyCode(primaryCode);
+    if (typeof resolved !== "number" || !Number.isFinite(resolved)) {
+      return false;
+    }
+
+    const defaults = DEFAULT_KEYMAP[action] ?? [];
+    const fallback = defaults.slice(1);
+    this.setBinding(action, [resolved, ...fallback]);
+    return true;
+  }
+
+  getBindingSnapshot() {
+    return Array.from(this.bindingCodes.entries()).map(([action, codes]) => ({
+      action,
+      codes: [...codes],
+      labels: codes.map((code) => formatKeyLabel(code))
+    }));
+  }
+
+  resetBindingsToDefault(action) {
+    if (!action || !DEFAULT_KEYMAP[action]) {
+      return false;
+    }
+    this.setBinding(action, DEFAULT_KEYMAP[action]);
+    return true;
+  }
+
+  resetAllBindings() {
+    this.bindings.forEach((keys) => keys.forEach((key) => key.destroy()));
+    this.bindings.clear();
+    this.bindingCodes.clear();
+    keyStateCache.clear();
+    this.justPressed.clear();
+    this.justReleased.clear();
+
+    Object.entries(DEFAULT_KEYMAP).forEach(([action, keys]) => {
+      this.setBinding(action, keys);
+    });
+  }
+
 
   destroy() {
     this.scene.events.off(Phaser.Scenes.Events.UPDATE, this.handleUpdate, this);
