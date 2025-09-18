@@ -1,6 +1,19 @@
-﻿import Phaser from "../phaser.js";
+import Phaser from "../phaser.js";
 
-const ASSET_BASE_PATH = "public";
+function resolveAssetBasePath() {
+  if (typeof window !== "undefined" && window.location) {
+    try {
+      const resolved = new URL("./public/", window.location.href);
+      return resolved.pathname.replace(/\/+$/, "");
+    } catch (err) {
+      console.warn("[Skywood] Failed to resolve public asset path, falling back.", err);
+    }
+  }
+
+  return "public";
+}
+
+const ASSET_BASE_PATH = resolveAssetBasePath();
 
 export const ASSET_KEYS = Object.freeze({
   ATLAS: {
