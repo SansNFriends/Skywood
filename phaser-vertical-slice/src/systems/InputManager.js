@@ -153,7 +153,6 @@ export default class InputManager {
     this.resetKeys();
   }
 
-
   setBinding(action, codes) {
     const uniqueCodes = Array.from(
       new Set(
@@ -219,7 +218,6 @@ export default class InputManager {
       this.setBinding(action, keys);
     });
   }
-
 
   destroy() {
     this.scene.events.off(Phaser.Scenes.Events.UPDATE, this.handleUpdate, this);

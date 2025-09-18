@@ -83,13 +83,11 @@ export default class UIScene extends Phaser.Scene {
     this.gameScene.events.on("ui-menu-state", this.handleMenuState, this);
   }
 
-
   emitGameEvent(eventName, payload) {
     if (this.gameScene && this.gameScene.events) {
       this.gameScene.events.emit(eventName, payload);
     }
   }
-
 
   createHud() {
     const container = this.add.container(24, 24).setDepth(HUD_DEPTH).setScrollFactor(0);
@@ -447,7 +445,6 @@ export default class UIScene extends Phaser.Scene {
     }
   }
 
-
   setBindingState(bindings) {
     if (!Array.isArray(bindings)) {
       this.bindingState = [];
@@ -465,7 +462,6 @@ export default class UIScene extends Phaser.Scene {
       this.refreshOptionsList();
     }
   }
-
 
   updateHud(hudState) {
     const hpRatio = hudState.maxHp > 0 ? Phaser.Math.Clamp(hudState.hp / hudState.maxHp, 0, 1) : 0;
