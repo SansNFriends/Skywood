@@ -8,6 +8,7 @@ const MINI_MAP_SIZE = { width: 176, height: 112 };
 export default class UIScene extends Phaser.Scene {
   constructor() {
     super({ key: "UIScene" });
+
     this.gameScene = null;
     this.hud = null;
     this.hpBarWidth = 220;
@@ -36,10 +37,6 @@ export default class UIScene extends Phaser.Scene {
 
   }
 
-  init(data) {
-    this.gameSceneKey = data?.gameSceneKey ?? "GameScene";
-  }
-
   create() {
     this.gameScene = this.scene.get(this.gameSceneKey);
     if (!this.gameScene) {
@@ -59,19 +56,14 @@ export default class UIScene extends Phaser.Scene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
 
-    if (this.gameScene?.events) {
-      this.gameScene.events.emit("ui-ready");
-    }
-  }
 
-  bindGameSceneEvents() {
-    if (!this.gameScene?.events) {
       return;
     }
     this.gameScene.events.on("ui-state", this.handleStateUpdate, this);
     this.gameScene.events.on("ui-panel", this.handlePanelToggle, this);
     this.gameScene.events.on("ui-menu-state", this.handleMenuState, this);
   }
+
 
   createHud() {
     const container = this.add.container(24, 24).setDepth(HUD_DEPTH).setScrollFactor(0);
@@ -229,10 +221,6 @@ export default class UIScene extends Phaser.Scene {
       .setOrigin(0, 0);
     const hint = this.add
 
-      .setOrigin(0, 0);
-
-    overlay.on("pointerdown", () => {
-      this.gameScene?.events.emit("ui-close-panel", { panel: "inventory" });
     });
 
     container.add([overlay, panel, title, list, detail, hint]);
@@ -265,9 +253,6 @@ export default class UIScene extends Phaser.Scene {
       })
       .setOrigin(0, 0);
 
-
-    overlay.on("pointerdown", () => {
-      this.gameScene?.events.emit("ui-close-panel", { panel: "options" });
     });
 
     container.add([overlay, panel, title, list, hint]);
@@ -285,6 +270,7 @@ export default class UIScene extends Phaser.Scene {
       left: Phaser.Input.Keyboard.KeyCodes.LEFT,
       right: Phaser.Input.Keyboard.KeyCodes.RIGHT,
       esc: Phaser.Input.Keyboard.KeyCodes.ESC,
+
       one: Phaser.Input.Keyboard.KeyCodes.ONE,
       two: Phaser.Input.Keyboard.KeyCodes.TWO,
       three: Phaser.Input.Keyboard.KeyCodes.THREE,
@@ -381,9 +367,7 @@ export default class UIScene extends Phaser.Scene {
   }
 
   updatePerformance(performance) {
-    const lines = [
-      `FPS ${(performance.fps ?? 0).toFixed(0)}`,
-      `Frame ${(performance.frameTime ?? 0).toFixed(1)} ms`,
+
       `Objects ${performance.objects}`,
       `Mobs ${performance.mobs}`,
       `Projectiles ${performance.projectiles}`
@@ -478,7 +462,7 @@ export default class UIScene extends Phaser.Scene {
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.navKeys.esc)) {
-      this.gameScene?.events.emit("ui-close-panel", { panel: "inventory" });
+
     }
   }
 
@@ -492,8 +476,6 @@ export default class UIScene extends Phaser.Scene {
       this.optionsSelectionIndex = Phaser.Math.Wrap(this.optionsSelectionIndex + 1, 0, this.optionsConfig.length);
       this.refreshOptionsList();
     }
-  }
-
 
   assignQuickSlot(slotIndex) {
     if (!this.inventoryData.length) {
@@ -503,31 +485,15 @@ export default class UIScene extends Phaser.Scene {
     if (!item) {
       return;
     }
-    this.gameScene?.events.emit("ui-assign-quick-slot", { slotIndex, itemId: item.id });
+
   }
 
   modifyOption(direction) {
     const config = this.optionsConfig[this.optionsSelectionIndex];
 
-      return;
-  }
-    const current = this.optionsState?.[config.key];
-    let nextValue = current;
-
-    if (config.type === "range") {
-      const step = config.step ?? 0.1;
-      nextValue = Phaser.Math.Clamp((current ?? config.min) + step * direction, config.min, config.max);
-    } else if (config.type === "choice") {
-      const list = config.values;
-      const currentIndex = Math.max(0, list.indexOf(current ?? list[0]));
       const nextIndex = Phaser.Math.Wrap(currentIndex + direction, 0, list.length);
       nextValue = list[nextIndex];
     }
-
-    this.optionsState = { ...this.optionsState, [config.key]: nextValue };
-    this.refreshOptionsList();
-    this.gameScene?.events.emit("ui-options-change", { [config.key]: nextValue });
-  }
 
 
       return;
@@ -537,7 +503,7 @@ export default class UIScene extends Phaser.Scene {
 
     const quickSlotMap = new Map();
     this.quickSlotData.forEach((slot) => {
-      if (slot?.itemId) {
+
         quickSlotMap.set(slot.itemId, slot.index + 1);
       }
     });
@@ -609,7 +575,7 @@ export default class UIScene extends Phaser.Scene {
   }
 
   shutdown() {
-    if (this.gameScene?.events) {
+
       this.gameScene.events.off("ui-state", this.handleStateUpdate, this);
       this.gameScene.events.off("ui-panel", this.handlePanelToggle, this);
       this.gameScene.events.off("ui-menu-state", this.handleMenuState, this);

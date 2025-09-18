@@ -154,6 +154,7 @@ export default class InputManager {
   }
 
 
+
   destroy() {
     this.scene.events.off(Phaser.Scenes.Events.UPDATE, this.handleUpdate, this);
     this.scene.game.events.off(Phaser.Core.Events.BLUR, this.handleBlur, this);
