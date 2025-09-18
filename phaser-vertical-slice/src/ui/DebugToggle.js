@@ -24,7 +24,9 @@ class DebugToggle extends Phaser.Events.EventEmitter {
     if (!keyboard) {
       return;
     }
+
     const eventName = resolveToggleEventName();
+
     const handleToggle = () => {
       this.toggle();
     };
@@ -36,6 +38,7 @@ class DebugToggle extends Phaser.Events.EventEmitter {
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, handleShutdown);
 
     this.boundScenes.set(scene, { handleToggle, handleShutdown, eventName });
+
     this.emit("changed", this.enabled, scene);
   }
 
@@ -45,8 +48,10 @@ class DebugToggle extends Phaser.Events.EventEmitter {
       return;
     }
     const keyboard = scene.input?.keyboard;
+
     if (keyboard && entry.eventName) {
       keyboard.off(entry.eventName, entry.handleToggle);
+
     }
     scene.events.off(Phaser.Scenes.Events.SHUTDOWN, entry.handleShutdown);
     this.boundScenes.delete(scene);
@@ -82,3 +87,4 @@ const debugHudToggle = new DebugToggle();
 export { debugHudToggle };
 
 export default debugHudToggle;
+

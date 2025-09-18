@@ -7,6 +7,7 @@
 - `F4` 키로 PerfMeter와 UIScene 성능 판넬을 동시에 토글할 수 있는 DebugToggle을 추가해 QA용 HUD를 필요 시 숨길 수 있게 했습니다.
 - 디버그 HUD 토글 싱글턴을 재정비해 브라우저 빌드에서 `Identifier 'debugToggle' has already been declared` 런타임 오류가 발생하지 않도록 했습니다.
 
+
 ## v0.5.1 — 필드 전리품 & 상호작용
 - 몬스터를 처치하면 Ember Shard 전리품이 물리적으로 지면에 떨어지고, `E` 키 상호작용으로 안전하게 인벤토리에 수집됩니다.
 - 전리품 획득 시 HUD와 인벤토리, 자동 저장 플래그가 즉시 동기화되며 획득 알림과 PerfMeter에 전리품/풀 상태 지표가 추가되었습니다.

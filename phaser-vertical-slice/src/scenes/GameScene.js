@@ -10,6 +10,7 @@ import LootDrop from "../entities/LootDrop.js";
 import Spawner from "../systems/Spawner.js";
 import SaveManager from "../systems/SaveManager.js";
 import debugHudToggle from "../ui/DebugToggle.js";
+
 import { GFX, QUALITY_LEVELS, applyGraphicsPreset, updateCurrentZoom } from "../config/graphics.js";
 import {
   createDefaultInventory,
@@ -17,6 +18,7 @@ import {
   ensureItemIconTexture,
   getItemDefinition
 } from "../data/ItemCatalog.js";
+
 
 const CAMERA_DEADZONE_X = 0.4;
 const CAMERA_DEADZONE_Y = 0.3;
@@ -83,7 +85,9 @@ export default class GameScene extends Phaser.Scene {
 
     this.resetQueued = false;
 
+
     this.debugHudVisible = debugHudToggle.getEnabled();
+
 
   }
 
@@ -147,9 +151,11 @@ export default class GameScene extends Phaser.Scene {
     this.markProgressDirty("startup", true);
 
     this.perfMeter = new PerfMeter(this);
+
     debugHudToggle.on("changed", this.handleDebugHudChange, this);
     debugHudToggle.bind(this);
     this.handleDebugHudChange(debugHudToggle.getEnabled());
+
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
   }
@@ -903,7 +909,9 @@ export default class GameScene extends Phaser.Scene {
     if (!camera) {
       return;
     }
+
     const baseZoom = typeof GFX.zoom === "number" ? GFX.zoom : 1;
+
     const scale = Phaser.Math.Clamp(this.optionsState?.resolutionScale ?? 1, 0.7, 1.2);
     const snappedZoom = Phaser.Math.Clamp(Math.round(baseZoom * scale), 1, 4);
     camera.setZoom(snappedZoom);
@@ -1500,8 +1508,10 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
+
     debugHudToggle.off("changed", this.handleDebugHudChange, this);
     debugHudToggle.unbind(this);
+
     if (this.saveManager) {
       this.saveDirty = true;
       this.commitSave();
