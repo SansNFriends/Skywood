@@ -109,6 +109,7 @@ const IMAGES = [
   { key: ASSET_KEYS.IMAGE.TILESET_SKYWOOD, url: `${ASSET_BASE_PATH}/assets/tilemaps/skywood_tileset.png?v=13` }
 ];
 
+
 const DEFAULT_TILESET_META = Object.freeze({
   tileWidth: 48,
   tileHeight: 48,
@@ -419,6 +420,7 @@ function injectStylesheet(url) {
 }
 
 export default class AssetLoader {
+
   static rememberAvailability(availability) {
     availabilityCache = cloneAvailability(availability);
   }
@@ -457,6 +459,7 @@ export default class AssetLoader {
     const imageAvailability = getAvailabilitySection(availability, "images");
     const audioAvailability = getAvailabilitySection(availability, "audio");
 
+
     ATLASES.forEach((atlas) => {
       if (shouldLoad(atlasAvailability, atlas.key)) {
         loader.atlas(atlas.key, atlas.textureURL, atlas.dataURL);
@@ -486,6 +489,9 @@ export default class AssetLoader {
     loader.once(Phaser.Loader.Events.COMPLETE, () => {
       ensureAtlases(scene);
       ensureTilesetTexture(scene);
+    });
+    loader.once(Phaser.Loader.Events.COMPLETE, () => {
+      ensureAtlases(scene);
     });
   }
 
