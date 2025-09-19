@@ -1,0 +1,22 @@
+# generated assets anywhere
+**/public/assets/atlas/**
+**/public/assets/fallback/**
+**/public/assets/raw/**
+**/public/assets/tilemaps/*.png
+
+# generic binaries under public/assets
+**/public/assets/**/*.png
+**/public/assets/**/*.jpg
+**/public/assets/**/*.jpeg
+**/public/assets/**/*.gif
+**/public/assets/**/*.webp
+**/public/assets/**/*.mp3
+**/public/assets/**/*.wav
+**/public/assets/**/*.ogg
+**/public/assets/**/*.ttf
+**/public/assets/**/*.otf
+**/public/assets/**/*.woff*
+*.zip
+
+# keep folder structure
+!**/public/assets/**/.gitkeep

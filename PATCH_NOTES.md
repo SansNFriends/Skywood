@@ -1,5 +1,53 @@
 # 패치 노트
 
+## v0.7.4 — 픽셀 프로필 자산 파이프라인
+- `scripts/fetch-assets.mjs`가 Kenney CC0 ZIP을 직접 다운로드해 48x48 스냅 규격으로 타일/데코를 재배치하고, 플레이어·FX·UI 프레임을 2장(core/world) 아틀라스로 묶도록 개편했습니다.
+- `--profile` 또는 `ASSET_PROFILE`로 `pixel`/`minimal`을 선택할 수 있으며, Content-Type 검증 실패나 네트워크 오류 시에는 기존 절차적 폴백을 자동으로 사용합니다.
+- AssetLoader와 Player 엔티티가 새 아틀라스 네이밍(런 12프레임, FX/아이콘 프레임)을 참조하고, 폴백 합성도 동일한 키를 생성하도록 정비했습니다.
+
+## v0.7.3 — 자산 폴백 점검
+- BootScene에서 `AssetLoader.detectAvailability()`를 호출해 atlas/배경/오디오 파일 존재 여부를 선검사한 뒤, 누락된 항목은 Preload 로더 큐에 올리지 않고 런타임 합성 텍스처로 즉시 대체하도록 했습니다. 덕분에 브라우저 콘솔에 404 경고가 더 이상 출력되지 않습니다.
+- 타일셋 PNG가 없을 때도 `tileset.skywood` 키에 캔버스 기반 플레이스홀더를 생성해 Tiled 맵 로딩이 실패하지 않도록 했습니다. 실제 자산을 내려받아 스크립트를 재실행하면 자동으로 교체됩니다.
+- README에 임시 아트 스크린샷이 정상 동작임을 명시하고, 자산 폴백 구조를 정리했습니다.
+
+## v0.7.2 — 패럴랙스 렌더링 안정화
+- `BackgroundSystem.update()` 루프에서 `continue` 키워드 사용으로 인해 브라우저가 `Illegal continue statement` 예외를 던지던 문제를 `return` 분기로 교체해 씬이 더 이상 크래시하지 않습니다.
+
+## v0.7.1 — 자산 클린업
+- 저장소에서 PNG·WAV 등 바이너리 산출물을 제거하고 `.gitignore`를 재귀 패턴으로 확장해 `public/assets/` 하위가 자동으로 무시되도록 했습니다.
+- `public/assets/atlas/`, `public/assets/fallback/`, `public/assets/raw/`, `public/assets/backgrounds/`에는 `.gitkeep`만 남겨 폴더 구조를 유지하며, 모든 아트는 `npm run assets:fetch`로 로컬에서 재생성하도록 안내했습니다.
+- README 최상단에 자산 재생성 절차를 명시해 신규 클론 환경에서도 스크립트를 실행해 바로 플레이할 수 있게 했습니다.
+
+## v0.7.0 — 패럴랙스 & 환경 연출
+- `BackgroundSystem`을 도입해 품질 프리셋에 따라 3~7단 패럴랙스 레이어를 자동 구성하고, 클라우드/포그/워터라인 애니메이션을 `GFX.enableEnvAnim`과
+  프리셋 토글에 연동했습니다. Balanced(기본값)는 6단 배치에 구름·안개만 움직이고, High는 7단 배치와 물결 연출을 활성화합니다.
+- 배경 자산이 누락되거나 로딩이 실패하면 Canvas 기반 그라디언트/포그 텍스처로 즉시 폴백해 네트워크가 끊겨도 단색 화면으로 내려가지 않도록 했습니다.
+- 그래픽 품질 Performance 프리셋에서도 최소 3단 패럴랙스를 유지하도록 스냅하고, `GameScene`은 씬 재시작·옵션 변경 시 BackgroundSystem을 재구성해
+  카메라 줌/세이브 흐름과 충돌하지 않도록 했습니다.
+
+## v0.6.0 — 텍스처 아틀라스 & 로딩 파이프라인
+- `scripts/fetch-assets.mjs` Node 파이프라인을 도입해 Kenney CC0 패키지를 자동 다운로드하고 실패 시 절차적으로 생성한 플레이스홀더로 폴백하도록 했습니다. `npm run assets:fetch` / `npm run assets:rebuild`로 아틀라스를 재생성할 수 있습니다.
+- 저장소에는 `.gitkeep`만 남기고 `public/assets/atlas/`와 `public/assets/fallback/` 산출물은 모두 `.gitignore` 처리했습니다. 필요 시 스크립트로 로컬에 재생성하고, 커밋 시 바이너리 충돌 없이 소스만 공유할 수 있습니다.
+- AssetLoader가 런타임 캔버스에서 `player/idle_*`, `mob/idle_00`, `projectile/basic` 등 핵심 프레임을 합성하는 절차적 폴백을 갖추어, 네트워크가 끊겨 실제 PNG를 받지 못해도 즉시 플레이 가능한 비주얼을 제공합니다.
+- 인벤토리와 퀵슬롯, 필드 전리품이 모두 아틀라스 프레임을 참조하도록 GameScene·UIScene·LootDrop을 정비해 아이콘 품질을 높이고 텍스처 바인딩 수를 줄였습니다.
+- 플레이어와 몬스터, 투사체 초기 프레임을 신규 아틀라스 네이밍(`player/idle_00`, `mob/idle_00`, `projectile/basic` 등)에 맞춰 갱신하고, 플레이어 이동/대시/공중 상태에 간단한 루프 애니메이션을 추가했습니다.
+
+## v0.5.2 — 픽셀 렌더 베이스
+- `src/config/graphics.js`에 렌더 품질 프리셋과 줌/패럴랙스/환경 토글 기본값을 정리해 씬에서 일관되게 참조할 수 있게 했습니다. Graphics
+  Quality는 High / Balanced / Performance 세 가지 프리셋을 제공하며 Balanced(기본값)에서 이전과 동일한 1x 카메라 줌을 유지합니다.
+- 해상도 스케일 옵션을 품질 프리셋의 기본 줌과 곱한 뒤 정수 배율(1x·2x·3x·4x)로 스냅하여 픽셀 지글을 예방하고 라운드 픽셀 렌더링을 강제했습니다.
+- `F4` 키로 PerfMeter와 UIScene 성능 판넬을 동시에 토글할 수 있는 DebugToggle을 추가해 QA용 HUD를 필요 시 숨길 수 있게 했습니다.
+- 디버그 HUD 토글 싱글턴을 재정비해 브라우저 빌드에서 `Identifier 'debugToggle' has already been declared` 런타임 오류가 발생하지 않도록 했습니다.
+
+## v0.5.1 — 필드 전리품 & 상호작용
+- 몬스터를 처치하면 Ember Shard 전리품이 물리적으로 지면에 떨어지고, `E` 키 상호작용으로 안전하게 인벤토리에 수집됩니다.
+- 전리품 획득 시 HUD와 인벤토리, 자동 저장 플래그가 즉시 동기화되며 획득 알림과 PerfMeter에 전리품/풀 상태 지표가 추가되었습니다.
+
+## v0.5.0 — 퀵슬롯 & 아이콘 인벤토리
+- 아이템 카탈로그와 기본 인벤토리/퀵슬롯 구성을 추가하고, 숫자키 1~4 퀵슬롯 입력을 지원해 소모품과 스킬을 즉시 사용할 수 있도록 했습니다.
+- Skyroot Tonic(HP 회복), Azure Focus(MP 회복), Wingburst Scroll(공중 대시 버프) 등 소모품 효과를 구현하고 MP 회복/윙버스트 버프 로직을 플레이어에 연동했습니다.
+- UIScene의 퀵슬롯/인벤토리 UI를 아이콘 기반으로 개편해 쿨다운 오버레이, 재고 표시, 상세 정보 메타텍스트와 함께 아이템 가시성을 개선했습니다.
+
 ## v0.4.0 — 저장 초기화 & 전투 개선
 - F8 버그 리포트 오버레이에서 `Shift+R`을 눌러 세이브 슬롯을 즉시 삭제하고 게임을 재시작할 수 있는 초기화 기능을 추가했습니다.
 - 저장 초기화 진행 상황이 HUD 시스템 배너와 버그 리포트 패널에 실시간으로 표시되도록 UI 연동을 강화했습니다.
