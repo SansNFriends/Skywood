@@ -34,6 +34,16 @@
     this.hp = Math.min(this.maxHP, this.hp + amount);
   }
 
+  restoreMp(amount) {
+    const delta = Number.isFinite(amount) ? amount : 0;
+    if (delta <= 0) {
+      return 0;
+    }
+    const before = this.mp;
+    this.mp = Math.min(this.maxMP, this.mp + delta);
+    return this.mp - before;
+  }
+
   reset() {
     this.hp = this.maxHP;
     this.mp = this.maxMP;

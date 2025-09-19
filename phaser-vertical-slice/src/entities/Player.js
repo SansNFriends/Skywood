@@ -1,4 +1,6 @@
-﻿import Phaser from "../phaser.js";
+// Purpose: Phaser Matter player entity with movement, combat, and atlas-driven animations.
+// Why: Gameplay logic must reference regenerated atlas frames while keeping input/save behaviour unchanged.
+import Phaser from "../phaser.js";
 import { ASSET_KEYS } from "../systems/AssetLoader.js";
 import { INPUT_KEYS } from "../systems/InputManager.js";
 import CombatStats from "./CombatStats.js";
@@ -27,11 +29,17 @@ const STEP_SCALE = 1 / 60;
 const toStep = (value) => value * STEP_SCALE;
 const fromStep = (value) => value / STEP_SCALE;
 const RUN_ANIM_INTERVAL = 120;
+const IDLE_ANIM_INTERVAL = 180;
 const HITSTUN_MS = 220;
+
+const PLAYER_IDLE_FRAMES = Array.from({ length: 8 }, (_, index) => `player/idle_0${index}`);
+const PLAYER_RUN_FRAMES = Array.from({ length: 12 }, (_, index) => `player/run_${index.toString().padStart(2, "0")}`);
+const PLAYER_JUMP_FRAMES = Array.from({ length: 4 }, (_, index) => `player/jump_0${index}`);
+const PLAYER_FALL_FRAMES = Array.from({ length: 4 }, (_, index) => `player/fall_0${index}`);
 
 export default class Player extends Phaser.Physics.Matter.Sprite {
   constructor(scene, x, y, inputManager) {
-    super(scene.matter.world, x, y, ASSET_KEYS.ATLAS.CORE, "player_idle");
+    super(scene.matter.world, x, y, ASSET_KEYS.ATLAS.CORE, PLAYER_IDLE_FRAMES[0]);
 
     this.scene = scene;
     this.input = inputManager;
@@ -47,12 +55,17 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     this.dashDirection = 0;
     this.groundContacts = new Set();
     this.runAnimElapsed = 0;
-    this.runFrameToggle = false;
+    this.runFrameIndex = 0;
+    this.idleAnimElapsed = 0;
+    this.idleFrameIndex = 0;
     this.stats = new CombatStats({ maxHP: 150, maxMP: 60 });
     this.hitstunTimer = 0;
     this.knockback = { x: 0, y: 0 };
     this.inputDisabled = false;
     this.invulnFlashTimer = 0;
+    this.wingburstTimer = 0;
+    this.wingburstCharges = 0;
+    this.wingburstMaxCharges = 0;
 
     this.initBody(x, y);
     this.registerCollisions();
@@ -146,6 +159,9 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     this.jumpCount = 0;
     this.lastGroundedMs = this.scene.time.now;
     this.allowDashReset = true;
+    if (this.wingburstTimer > 0) {
+      this.wingburstCharges = this.wingburstMaxCharges;
+    }
   }
 
   removeGroundContact(body) {
@@ -171,6 +187,7 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     this.updateTimers(delta);
     this.applyMovement(delta);
     this.updateDash(delta);
+    this.updateWingburst(delta);
     this.updateHitstun(delta);
     this.updateAnimations(delta);
   }
@@ -278,8 +295,13 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
       return;
     }
 
-    if (!this.allowDashReset && !this.isOnGround) {
-      return;
+    if (!this.isOnGround && !this.allowDashReset) {
+      if (this.wingburstTimer > 0 && this.wingburstCharges > 0) {
+        this.wingburstCharges = Math.max(0, this.wingburstCharges - 1);
+        this.allowDashReset = true;
+      } else {
+        return;
+      }
     }
 
     const left = this.input.isDown(INPUT_KEYS.LEFT) ? -1 : 0;
@@ -324,6 +346,24 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     }
   }
 
+  updateWingburst(delta) {
+    if (this.wingburstTimer <= 0) {
+      return;
+    }
+
+    this.wingburstTimer = Math.max(0, this.wingburstTimer - delta);
+    if (this.wingburstTimer <= 0) {
+      this.wingburstTimer = 0;
+      this.wingburstCharges = 0;
+      this.wingburstMaxCharges = 0;
+      return;
+    }
+
+    if (this.isOnGround && this.wingburstCharges < this.wingburstMaxCharges) {
+      this.wingburstCharges = this.wingburstMaxCharges;
+    }
+  }
+
   updateHitstun(delta) {
     if (this.hitstunTimer > 0) {
       return;
@@ -364,7 +404,7 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     this.setFlipX(this.facing < 0);
 
     if (this.isDashing) {
-      this.setFrameSafe("player_run");
+      this.setFrameSafe(PLAYER_RUN_FRAMES[this.runFrameIndex] || PLAYER_RUN_FRAMES[0]);
       this.runAnimElapsed = 0;
       return;
     }
@@ -372,8 +412,12 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     const velocity = this.body.velocity;
 
     if (!this.isOnGround) {
-      this.setFrameSafe("player_run");
       this.runAnimElapsed = 0;
+      this.runFrameIndex = 0;
+      const rising = velocity.y < -toStep(40);
+      const frames = rising ? PLAYER_JUMP_FRAMES : PLAYER_FALL_FRAMES;
+      const frameIndex = frames.length > 1 ? 1 : 0;
+      this.setFrameSafe(frames[frameIndex]);
       return;
     }
 
@@ -381,13 +425,20 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
       this.runAnimElapsed += delta;
       if (this.runAnimElapsed >= RUN_ANIM_INTERVAL) {
         this.runAnimElapsed = 0;
-        this.runFrameToggle = !this.runFrameToggle;
+        this.runFrameIndex = (this.runFrameIndex + 1) % PLAYER_RUN_FRAMES.length;
       }
-      this.setFrameSafe(this.runFrameToggle ? "player_run" : "player_idle");
+      this.idleAnimElapsed = 0;
+      this.idleFrameIndex = 0;
+      this.setFrameSafe(PLAYER_RUN_FRAMES[this.runFrameIndex]);
     } else {
       this.runAnimElapsed = 0;
-      this.runFrameToggle = false;
-      this.setFrameSafe("player_idle");
+      this.runFrameIndex = 0;
+      this.idleAnimElapsed += delta;
+      if (this.idleAnimElapsed >= IDLE_ANIM_INTERVAL) {
+        this.idleAnimElapsed = 0;
+        this.idleFrameIndex = (this.idleFrameIndex + 1) % PLAYER_IDLE_FRAMES.length;
+      }
+      this.setFrameSafe(PLAYER_IDLE_FRAMES[this.idleFrameIndex]);
     }
   }
 
@@ -401,6 +452,18 @@ export default class Player extends Phaser.Physics.Matter.Sprite {
     }
 
     super.setFrame(frameKey, false, false);
+  }
+
+  grantWingburst(durationMs, charges = 1) {
+    const duration = Math.max(0, Math.round(durationMs || 0));
+    const chargeCount = Math.max(0, Math.floor(charges || 0));
+    if (duration > 0) {
+      this.wingburstTimer = Math.max(this.wingburstTimer, duration);
+    }
+    if (chargeCount > 0) {
+      this.wingburstMaxCharges = chargeCount;
+      this.wingburstCharges = chargeCount;
+    }
   }
 
   setInputEnabled(enabled) {

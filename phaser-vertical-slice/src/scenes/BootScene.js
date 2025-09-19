@@ -1,4 +1,5 @@
-﻿import Phaser from "../phaser.js";
+import Phaser from "../phaser.js";
+import AssetLoader from "../systems/AssetLoader.js";
 
 export default class BootScene extends Phaser.Scene {
   constructor() {
@@ -21,6 +22,18 @@ export default class BootScene extends Phaser.Scene {
       }
     }
 
-    this.scene.start("PreloadScene");
+    const launchPreload = (availability) => {
+      if (availability) {
+        AssetLoader.rememberAvailability(availability);
+      }
+      this.scene.start("PreloadScene", { availability });
+    };
+
+    AssetLoader.detectAvailability()
+      .then(launchPreload)
+      .catch((err) => {
+        console.warn("[Skywood] Asset availability check skipped:", err);
+        launchPreload(null);
+      });
   }
 }
