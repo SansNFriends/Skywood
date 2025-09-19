@@ -1,5 +1,9 @@
 # 패치 노트
 
+
+## v0.7.2 — 패럴랙스 렌더링 안정화
+- `BackgroundSystem.update()` 루프에서 `continue` 키워드 사용으로 인해 브라우저가 `Illegal continue statement` 예외를 던지던 문제를 `return` 분기로 교체해 씬이 더 이상 크래시하지 않습니다.
+
 ## v0.7.1 — 자산 클린업
 - 저장소에서 PNG·WAV 등 바이너리 산출물을 제거하고 `.gitignore`를 재귀 패턴으로 확장해 `public/assets/` 하위가 자동으로 무시되도록 했습니다.
 - `public/assets/atlas/`, `public/assets/fallback/`, `public/assets/raw/`, `public/assets/backgrounds/`에는 `.gitkeep`만 남겨 폴더 구조를 유지하며, 모든 아트는 `npm run assets:fetch`로 로컬에서 재생성하도록 안내했습니다.

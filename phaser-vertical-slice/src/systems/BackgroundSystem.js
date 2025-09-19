@@ -569,7 +569,9 @@ export default class BackgroundSystem {
         if (def.animate?.sway && go instanceof Phaser.GameObjects.TileSprite) {
           go.y = layer.baseY;
         }
-        continue;
+
+        return;
+
       }
 
       if (def.animate?.scrollX) {
