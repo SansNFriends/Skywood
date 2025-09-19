@@ -109,6 +109,166 @@ const IMAGES = [
   { key: ASSET_KEYS.IMAGE.TILESET_SKYWOOD, url: `${ASSET_BASE_PATH}/assets/tilemaps/skywood_tileset.png?v=13` }
 ];
 
+
+const DEFAULT_TILESET_META = Object.freeze({
+  tileWidth: 48,
+  tileHeight: 48,
+  columns: 8,
+  tileCount: 48
+});
+
+async function checkUrlExists(url) {
+  if (!url || typeof fetch !== "function") {
+    return false;
+  }
+
+  try {
+    const response = await fetch(url, { method: "HEAD", cache: "no-store" });
+    if (response.ok) {
+      return true;
+    }
+
+    if (response.status === 405 || response.status === 501) {
+      const fallbackResponse = await fetch(url, { method: "GET", cache: "no-store" });
+      if (fallbackResponse.ok) {
+        try {
+          await fallbackResponse.body?.cancel?.();
+        } catch (err) {
+          // Ignore cancellation failure; body will be GC'd.
+        }
+        return true;
+      }
+    }
+  } catch (err) {
+    // Network or protocol failure; treat as missing asset.
+  }
+
+  return false;
+}
+
+function detectTileMetadataFromCache(scene) {
+  const defaults = { ...DEFAULT_TILESET_META };
+  if (!scene?.cache?.tilemap) {
+    return defaults;
+  }
+
+  try {
+    const cached = scene.cache.tilemap.get(ASSET_KEYS.MAP.SKYWOOD);
+    const data = cached?.data ?? cached;
+    if (!data) {
+      return defaults;
+    }
+    const tileset = Array.isArray(data.tilesets) ? data.tilesets[0] : null;
+    return {
+      tileWidth: tileset?.tilewidth ?? data.tilewidth ?? defaults.tileWidth,
+      tileHeight: tileset?.tileheight ?? data.tileheight ?? defaults.tileHeight,
+      columns: tileset?.columns ?? defaults.columns,
+      tileCount: tileset?.tilecount ?? defaults.tileCount
+    };
+  } catch (err) {
+    return defaults;
+  }
+}
+
+function ensureTilesetTexture(scene) {
+  if (!scene) {
+    return;
+  }
+
+  const textures = scene.textures;
+  if (textures.exists(ASSET_KEYS.IMAGE.TILESET_SKYWOOD)) {
+    return;
+  }
+
+  const meta = detectTileMetadataFromCache(scene);
+  const tileWidth = Math.max(8, Math.round(meta.tileWidth));
+  const tileHeight = Math.max(8, Math.round(meta.tileHeight));
+  const columns = Math.max(1, Math.round(meta.columns));
+  const tileCount = Math.max(columns, Math.round(meta.tileCount));
+  const rows = Math.ceil(tileCount / columns);
+  const width = columns * tileWidth;
+  const height = rows * tileHeight;
+  const canvas = textures.createCanvas(ASSET_KEYS.IMAGE.TILESET_SKYWOOD, width, height);
+  const ctx = canvas?.getContext();
+  if (!ctx) {
+    return;
+  }
+
+  ctx.fillStyle = "#121a29";
+  ctx.fillRect(0, 0, width, height);
+
+  for (let index = 0; index < tileCount; index += 1) {
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    const x = column * tileWidth;
+    const y = row * tileHeight;
+    const hue = (index * 37) % 360;
+    const lightness = 34 + (index % 3) * 6;
+    const saturation = 48 + (index % 5) * 6;
+    ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    ctx.fillRect(x + 2, y + 2, tileWidth - 4, tileHeight - 4);
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.35)";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x + 1.5, y + 1.5, tileWidth - 3, tileHeight - 3);
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 3.5, y + 3.5, tileWidth - 7, tileHeight - 7);
+  }
+
+  canvas.refresh();
+}
+
+function shouldLoad(map, key) {
+  if (!map) {
+    return true;
+  }
+  if (Object.prototype.hasOwnProperty.call(map, key)) {
+    return Boolean(map[key]);
+  }
+  return true;
+}
+
+function getAvailabilitySection(availability, sectionKey) {
+  if (!availability || typeof availability !== "object") {
+    return null;
+  }
+  const section = availability[sectionKey];
+  return section && typeof section === "object" ? section : null;
+}
+
+async function detectAssetAvailability() {
+  const availability = {
+    atlases: {},
+    audio: {},
+    images: {}
+  };
+
+  const atlasChecks = ATLASES.map(async (atlas) => {
+    const [textureExists, dataExists] = await Promise.all([
+      checkUrlExists(atlas.textureURL),
+      checkUrlExists(atlas.dataURL)
+    ]);
+    availability.atlases[atlas.key] = textureExists && dataExists;
+  });
+
+  const audioChecks = AUDIO_SPRITES.map(async (sprite) => {
+    const [jsonExists, ...audioExists] = await Promise.all([
+      checkUrlExists(sprite.jsonURL),
+      ...sprite.audioURLs.map((url) => checkUrlExists(url))
+    ]);
+    availability.audio[sprite.key] = Boolean(jsonExists && audioExists.every(Boolean));
+  });
+
+  const imageChecks = IMAGES.map(async (image) => {
+    const exists = await checkUrlExists(image.url);
+    availability.images[image.key] = exists;
+  });
+
+  await Promise.allSettled([...atlasChecks, ...audioChecks, ...imageChecks]);
+
+  return availability;
+}
+
 function toCssColor(color) {
   if (typeof color === "number") {
     const hex = color.toString(16).padStart(6, "0");
@@ -232,6 +392,20 @@ const WEB_FONTS = [
 
 const injectedStylesheets = new Set();
 
+let availabilityCache = null;
+let availabilityPromise = null;
+
+function cloneAvailability(availability) {
+  if (!availability) {
+    return null;
+  }
+  return {
+    atlases: { ...(availability.atlases || {}) },
+    audio: { ...(availability.audio || {}) },
+    images: { ...(availability.images || {}) }
+  };
+}
+
 function injectStylesheet(url) {
   if (injectedStylesheets.has(url)) {
     return;
@@ -246,17 +420,60 @@ function injectStylesheet(url) {
 }
 
 export default class AssetLoader {
-  static registerCore(loader) {
+
+  static rememberAvailability(availability) {
+    availabilityCache = cloneAvailability(availability);
+  }
+
+  static getAvailability() {
+    return cloneAvailability(availabilityCache);
+  }
+
+  static async detectAvailability() {
+    if (availabilityCache) {
+      return cloneAvailability(availabilityCache);
+    }
+    if (!availabilityPromise) {
+      availabilityPromise = detectAssetAvailability()
+        .then((result) => {
+          availabilityCache = cloneAvailability(result);
+          return cloneAvailability(result);
+        })
+        .catch((error) => {
+          availabilityPromise = null;
+          throw error;
+        });
+    }
+    return availabilityPromise;
+  }
+
+  static clearAvailability() {
+    availabilityCache = null;
+    availabilityPromise = null;
+  }
+
+  static registerCore(loader, availabilityOverride = null) {
     const scene = loader?.scene || null;
+    const availability = availabilityOverride || availabilityCache;
+    const atlasAvailability = getAvailabilitySection(availability, "atlases");
+    const imageAvailability = getAvailabilitySection(availability, "images");
+    const audioAvailability = getAvailabilitySection(availability, "audio");
+
 
     ATLASES.forEach((atlas) => {
-      loader.atlas(atlas.key, atlas.textureURL, atlas.dataURL);
+      if (shouldLoad(atlasAvailability, atlas.key)) {
+        loader.atlas(atlas.key, atlas.textureURL, atlas.dataURL);
+      } else {
+        createRuntimeFallback(scene, atlas);
+      }
     });
 
     AUDIO_SPRITES.forEach((sprite) => {
-      loader.audioSprite(sprite.key, sprite.jsonURL, sprite.audioURLs, {
-        instances: 8
-      });
+      if (shouldLoad(audioAvailability, sprite.key)) {
+        loader.audioSprite(sprite.key, sprite.jsonURL, sprite.audioURLs, {
+          instances: 8
+        });
+      }
     });
 
     TILEMAPS.forEach((entry) => {
@@ -264,7 +481,14 @@ export default class AssetLoader {
     });
 
     IMAGES.forEach((image) => {
-      loader.image(image.key, image.url);
+      if (shouldLoad(imageAvailability, image.key)) {
+        loader.image(image.key, image.url);
+      }
+    });
+
+    loader.once(Phaser.Loader.Events.COMPLETE, () => {
+      ensureAtlases(scene);
+      ensureTilesetTexture(scene);
     });
     loader.once(Phaser.Loader.Events.COMPLETE, () => {
       ensureAtlases(scene);

@@ -1,6 +1,11 @@
 # 패치 노트
 
 
+## v0.7.3 — 자산 폴백 점검
+- BootScene에서 `AssetLoader.detectAvailability()`를 호출해 atlas/배경/오디오 파일 존재 여부를 선검사한 뒤, 누락된 항목은 Preload 로더 큐에 올리지 않고 런타임 합성 텍스처로 즉시 대체하도록 했습니다. 덕분에 브라우저 콘솔에 404 경고가 더 이상 출력되지 않습니다.
+- 타일셋 PNG가 없을 때도 `tileset.skywood` 키에 캔버스 기반 플레이스홀더를 생성해 Tiled 맵 로딩이 실패하지 않도록 했습니다. 실제 자산을 내려받아 스크립트를 재실행하면 자동으로 교체됩니다.
+- README에 임시 아트 스크린샷이 정상 동작임을 명시하고, 자산 폴백 구조를 정리했습니다.
+
 ## v0.7.2 — 패럴랙스 렌더링 안정화
 - `BackgroundSystem.update()` 루프에서 `continue` 키워드 사용으로 인해 브라우저가 `Illegal continue statement` 예외를 던지던 문제를 `return` 분기로 교체해 씬이 더 이상 크래시하지 않습니다.
 
