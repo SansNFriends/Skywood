@@ -1,4 +1,8 @@
+// Assets: CC0 (Kenney.nl / OpenGameArt CC0)
 import Phaser from "../phaser.js";
+
+const DEFAULT_ICON_TEXTURE = "atlas.core";
+const DEFAULT_FALLBACK_ICON = "ui.item.placeholder";
 
 export const ITEM_CATALOG = Object.freeze({
   skyroot_tonic: {
@@ -9,6 +13,8 @@ export const ITEM_CATALOG = Object.freeze({
     defaultQuantity: 3,
     order: 1,
     iconKey: "ui.item.skyroot_tonic",
+    iconTexture: DEFAULT_ICON_TEXTURE,
+    iconFrame: "ui/icons/skyroot_tonic",
     icon: {
       type: "potion",
       colors: {
@@ -31,6 +37,8 @@ export const ITEM_CATALOG = Object.freeze({
     defaultQuantity: 2,
     order: 2,
     iconKey: "ui.item.azure_focus",
+    iconTexture: DEFAULT_ICON_TEXTURE,
+    iconFrame: "ui/icons/azure_focus",
     icon: {
       type: "crystal",
       colors: {
@@ -52,6 +60,8 @@ export const ITEM_CATALOG = Object.freeze({
     defaultQuantity: 5,
     order: 3,
     iconKey: "ui.item.ember_shard",
+    iconTexture: DEFAULT_ICON_TEXTURE,
+    iconFrame: "ui/icons/ember_shard",
     icon: {
       type: "shard",
       colors: {
@@ -73,6 +83,8 @@ export const ITEM_CATALOG = Object.freeze({
     defaultQuantity: 1,
     order: 4,
     iconKey: "ui.item.wingburst_scroll",
+    iconTexture: DEFAULT_ICON_TEXTURE,
+    iconFrame: "ui/icons/wingburst_scroll",
     icon: {
       type: "scroll",
       colors: {
@@ -106,6 +118,8 @@ export function createDefaultInventory() {
       quantity: def.defaultQuantity,
       description: def.description,
       iconKey: def.iconKey,
+      iconTexture: def.iconTexture || DEFAULT_ICON_TEXTURE,
+      iconFrame: def.iconFrame || null,
       cooldownMs: def.cooldownMs ?? 0,
       usable: def.usable !== false
     }));
@@ -126,11 +140,22 @@ export function isItemUsable(itemId) {
 }
 
 export function ensureItemIconTexture(scene, definition) {
-  if (!definition || !definition.iconKey || !scene || !scene.textures) {
-    return;
+  if (!definition || !scene || !scene.textures) {
+    return { texture: null, frame: null, key: null };
   }
-  if (scene.textures.exists(definition.iconKey)) {
-    return;
+
+  const atlasKey = definition.iconTexture || DEFAULT_ICON_TEXTURE;
+  const frameKey = definition.iconFrame || null;
+  if (atlasKey && frameKey && scene.textures.exists(atlasKey)) {
+    const atlasTexture = scene.textures.get(atlasKey);
+    if (atlasTexture && typeof atlasTexture.has === "function" && atlasTexture.has(frameKey)) {
+      return { texture: atlasKey, frame: frameKey, key: null };
+    }
+  }
+
+  const fallbackKey = definition.iconKey || `${definition.id || "item"}.icon`;
+  if (scene.textures.exists(fallbackKey)) {
+    return { texture: fallbackKey, frame: null, key: fallbackKey };
   }
 
   const size = 64;
@@ -139,22 +164,20 @@ export function ensureItemIconTexture(scene, definition) {
   gfx.fillStyle(0x000000, 0);
   gfx.fillRect(0, 0, size, size);
 
-  const { icon } = definition;
-  if (!icon) {
-    gfx.generateTexture(definition.iconKey, size, size);
+  const iconSpec = definition.icon;
+  if (!iconSpec) {
+    gfx.generateTexture(fallbackKey, size, size);
     gfx.destroy();
-    return;
+    return { texture: fallbackKey, frame: null, key: fallbackKey };
   }
 
   const centerX = size * 0.5;
   const centerY = size * 0.5;
-
-  const type = icon.type;
-  const colors = icon.colors || {};
+  const colors = iconSpec.colors || {};
 
   gfx.lineStyle(3, colors.outline ?? 0x1a1e2c, 0.95);
 
-  switch (type) {
+  switch (iconSpec.type) {
     case "potion": {
       const radius = size * 0.22;
       const bodyY = centerY + size * 0.08;
@@ -261,12 +284,24 @@ export function ensureItemIconTexture(scene, definition) {
     }
   }
 
-  gfx.generateTexture(definition.iconKey, size, size);
+  gfx.generateTexture(fallbackKey, size, size);
   gfx.destroy();
+  return { texture: fallbackKey, frame: null, key: fallbackKey };
 }
 
 export function ensureAllItemIcons(scene) {
   Object.values(ITEM_CATALOG).forEach((definition) => {
     ensureItemIconTexture(scene, definition);
   });
+}
+
+export function resolveItemIcon(definition) {
+  if (!definition) {
+    return { texture: null, frame: null, fallback: DEFAULT_FALLBACK_ICON };
+  }
+  return {
+    texture: definition.iconTexture || DEFAULT_ICON_TEXTURE,
+    frame: definition.iconFrame || null,
+    fallback: definition.iconKey || DEFAULT_FALLBACK_ICON
+  };
 }

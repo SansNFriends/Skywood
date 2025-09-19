@@ -10,15 +10,15 @@ import LootDrop from "../entities/LootDrop.js";
 import Spawner from "../systems/Spawner.js";
 import SaveManager from "../systems/SaveManager.js";
 import debugHudToggle from "../ui/DebugToggle.js";
-
+import BackgroundSystem from "../systems/BackgroundSystem.js";
 import { GFX, QUALITY_LEVELS, applyGraphicsPreset, updateCurrentZoom } from "../config/graphics.js";
 import {
   createDefaultInventory,
   createDefaultQuickSlots,
   ensureItemIconTexture,
-  getItemDefinition
+  getItemDefinition,
+  resolveItemIcon
 } from "../data/ItemCatalog.js";
-
 
 const CAMERA_DEADZONE_X = 0.4;
 const CAMERA_DEADZONE_Y = 0.3;
@@ -44,8 +44,7 @@ export default class GameScene extends Phaser.Scene {
     this.perfMeter = null;
     this.map = null;
     this.layers = {};
-    this.parallaxLayers = [];
-    this.parallaxConfig = [];
+    this.backgroundSystem = null;
     this.inputManager = null;
     this.player = null;
     this.audio = null;
@@ -85,9 +84,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.resetQueued = false;
 
-
     this.debugHudVisible = debugHudToggle.getEnabled();
-
 
   }
 
@@ -151,11 +148,9 @@ export default class GameScene extends Phaser.Scene {
     this.markProgressDirty("startup", true);
 
     this.perfMeter = new PerfMeter(this);
-
     debugHudToggle.on("changed", this.handleDebugHudChange, this);
     debugHudToggle.bind(this);
     this.handleDebugHudChange(debugHudToggle.getEnabled());
-
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
   }
@@ -206,23 +201,12 @@ export default class GameScene extends Phaser.Scene {
   }
 
   createParallax() {
-    const { width, height } = this.scale;
-    const layerDefinitions = [
-      { key: ASSET_KEYS.IMAGE.PARALLAX_FAR, ratio: 0.15, depth: -5 },
-      { key: ASSET_KEYS.IMAGE.PARALLAX_MID, ratio: 0.25, depth: -4 },
-      { key: ASSET_KEYS.IMAGE.PARALLAX_NEAR, ratio: 0.35, depth: -3 },
-      { key: ASSET_KEYS.IMAGE.PARALLAX_FOREST, ratio: 0.45, depth: -2 },
-      { key: ASSET_KEYS.IMAGE.PARALLAX_FOREGROUND, ratio: 0.6, depth: -1 }
-    ];
-
-    this.parallaxConfig = layerDefinitions;
-    this.parallaxLayers = layerDefinitions.map((layer) =>
-      this.add
-        .tileSprite(0, 0, width, height, layer.key)
-        .setOrigin(0, 0)
-        .setScrollFactor(0)
-        .setDepth(layer.depth)
-    );
+    if (this.backgroundSystem) {
+      this.backgroundSystem.destroy();
+      this.backgroundSystem = null;
+    }
+    this.backgroundSystem = new BackgroundSystem(this, GFX);
+    this.backgroundSystem.enable();
   }
 
   createTilemap() {
@@ -405,13 +389,19 @@ export default class GameScene extends Phaser.Scene {
       ? Math.max(0, Math.round(raw.cooldownMs))
       : def?.cooldownMs ?? 0;
     const usable = raw.usable !== undefined ? Boolean(raw.usable) : def ? def.usable !== false : true;
+    const iconMeta = resolveItemIcon(def);
+    const iconTexture = typeof raw.iconTexture === "string" ? raw.iconTexture : iconMeta.texture;
+    const iconFrame = typeof raw.iconFrame === "string" ? raw.iconFrame : iconMeta.frame;
+    const iconKey = raw.iconKey || iconMeta.fallback || null;
     return {
       id: raw.id,
       name: raw.name || def?.name || raw.id,
       type: raw.type || def?.type || "consumable",
       quantity,
       description: raw.description || def?.description || "",
-      iconKey: raw.iconKey || def?.iconKey || null,
+      iconKey,
+      iconTexture: iconTexture || null,
+      iconFrame: iconFrame || null,
       cooldownMs,
       usable
     };
@@ -442,21 +432,39 @@ export default class GameScene extends Phaser.Scene {
 
     const normalizedQuantity = Math.max(1, Math.round(quantity));
     const definition = getItemDefinition(itemId) || null;
-    if (definition) {
-      ensureItemIconTexture(this, definition);
-    }
+    const iconInfo = definition ? ensureItemIconTexture(this, definition) : { texture: null, frame: null, key: null };
+    const baseIcon = resolveItemIcon(definition);
 
     let entry = this.inventory.find((item) => item.id === itemId);
     if (entry) {
       entry.quantity = Math.max(0, Math.round(entry.quantity + normalizedQuantity));
+      if (iconInfo?.texture) {
+        entry.iconTexture = iconInfo.texture;
+      } else if (!entry.iconTexture && baseIcon.texture) {
+        entry.iconTexture = baseIcon.texture;
+      }
+      if (iconInfo?.frame) {
+        entry.iconFrame = iconInfo.frame;
+      } else if (!entry.iconFrame && baseIcon.frame) {
+        entry.iconFrame = baseIcon.frame;
+      }
+      if (!entry.iconKey && (iconInfo?.key || baseIcon.fallback)) {
+        entry.iconKey = iconInfo?.key || baseIcon.fallback;
+      }
     } else {
-      const normalized = this.normalizeInventoryItem({ id: itemId, quantity: normalizedQuantity });
+      const normalized = this.normalizeInventoryItem({
+        id: itemId,
+        quantity: normalizedQuantity,
+        iconKey: iconInfo?.key || baseIcon.fallback,
+        iconTexture: iconInfo?.texture || baseIcon.texture,
+        iconFrame: iconInfo?.frame || baseIcon.frame
+      });
       if (!normalized) {
         return false;
       }
       normalized.quantity = Math.max(1, Math.round(normalized.quantity || normalizedQuantity));
-      if (definition?.iconKey && !normalized.iconKey) {
-        normalized.iconKey = definition.iconKey;
+      if (!normalized.iconKey && (iconInfo?.key || baseIcon.fallback)) {
+        normalized.iconKey = iconInfo?.key || baseIcon.fallback;
       }
       this.inventory.push(normalized);
       this.sortInventoryEntries();
@@ -551,7 +559,7 @@ export default class GameScene extends Phaser.Scene {
 
   update(time, delta) {
     this.lastFrameTime = delta;
-    this.updateParallax();
+    this.updateParallax(time, delta);
     this.handleUtilityInput();
     this.updateQuickSlotCooldowns(delta);
     this.primaryAttackCooldown = Math.max(0, this.primaryAttackCooldown - delta);
@@ -909,9 +917,7 @@ export default class GameScene extends Phaser.Scene {
     if (!camera) {
       return;
     }
-
     const baseZoom = typeof GFX.zoom === "number" ? GFX.zoom : 1;
-
     const scale = Phaser.Math.Clamp(this.optionsState?.resolutionScale ?? 1, 0.7, 1.2);
     const snappedZoom = Phaser.Math.Clamp(Math.round(baseZoom * scale), 1, 4);
     camera.setZoom(snappedZoom);
@@ -932,6 +938,7 @@ export default class GameScene extends Phaser.Scene {
       }
     }
     this.updateResolutionScale();
+    this.backgroundSystem?.refreshFromConfig();
   }
 
   updateUIHeartbeat(delta) {
@@ -1075,12 +1082,18 @@ export default class GameScene extends Phaser.Scene {
       const definition = slot.itemId ? getItemDefinition(slot.itemId) : null;
       const runtime = this.quickSlotRuntime?.[index] || null;
       const cooldownTotal = runtime?.cooldownTotal ?? item?.cooldownMs ?? definition?.cooldownMs ?? 0;
+      const iconMeta = resolveItemIcon(definition);
+      const texture = item?.iconTexture || iconMeta.texture;
+      const frame = item?.iconFrame || iconMeta.frame;
+      const fallbackKey = item?.iconKey || iconMeta.fallback || null;
       return {
         index: slot.index,
         itemId: slot.itemId,
         name: item?.name ?? null,
         quantity: item?.quantity ?? 0,
-        iconKey: item?.iconKey ?? definition?.iconKey ?? null,
+        iconKey: fallbackKey,
+        iconTexture: texture || null,
+        iconFrame: frame || null,
         cooldownRemaining: Math.max(0, runtime?.cooldownRemaining ?? 0),
         cooldownTotal: Math.max(0, cooldownTotal),
         usable: item ? item.usable !== false : definition ? definition.usable !== false : false
@@ -1448,17 +1461,8 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  updateParallax() {
-    if (!this.parallaxLayers.length) {
-      return;
-    }
-    const scrollX = this.cameras.main.scrollX;
-    const scrollY = this.cameras.main.scrollY;
-    this.parallaxLayers.forEach((sprite, index) => {
-      const ratio = this.parallaxConfig[index].ratio;
-      sprite.tilePositionX = scrollX * ratio;
-      sprite.tilePositionY = scrollY * ratio * 0.6;
-    });
+  updateParallax(time, delta) {
+    this.backgroundSystem?.update(time, delta);
   }
 
   spawnDamageNumber(x, y, value, color) {
@@ -1508,10 +1512,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
-
     debugHudToggle.off("changed", this.handleDebugHudChange, this);
     debugHudToggle.unbind(this);
-
     if (this.saveManager) {
       this.saveDirty = true;
       this.commitSave();
@@ -1521,7 +1523,8 @@ export default class GameScene extends Phaser.Scene {
     this.perfMeter = null;
     this.player = null;
     this.layers = {};
-    this.parallaxLayers = [];
+    this.backgroundSystem?.destroy();
+    this.backgroundSystem = null;
     this.inputManager = null;
     this.projectiles.clear();
     if (this.damageTextPool) {

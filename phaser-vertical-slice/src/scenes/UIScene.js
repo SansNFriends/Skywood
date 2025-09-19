@@ -1,8 +1,7 @@
 import Phaser from "../phaser.js";
 import { INPUT_KEYS } from "../systems/InputManager.js";
-import { ITEM_CATALOG, ensureAllItemIcons } from "../data/ItemCatalog.js";
+import { ITEM_CATALOG, ensureAllItemIcons, resolveItemIcon } from "../data/ItemCatalog.js";
 import debugHudToggle from "../ui/DebugToggle.js";
-
 
 const HUD_DEPTH = 2000;
 const QUICK_SLOT_COUNT = 4;
@@ -56,7 +55,6 @@ export default class UIScene extends Phaser.Scene {
     this.resetInProgress = false;
     this.debugHudVisible = debugHudToggle.getEnabled();
 
-
   }
 
   init(data) {
@@ -73,10 +71,8 @@ export default class UIScene extends Phaser.Scene {
     this.createHud();
     this.createPerformanceReadout();
     ensureAllItemIcons(this);
-
     debugHudToggle.on("changed", this.handleDebugHudChange, this);
     this.handleDebugHudChange(debugHudToggle.getEnabled());
-
     this.createQuickSlots();
     this.createMiniMap();
     this.createInventoryPanel();
@@ -775,11 +771,27 @@ export default class UIScene extends Phaser.Scene {
         return;
       }
       visual.frame.setFillStyle(0x1f273a, 0.9);
-      if (slot.iconKey && this.textures.exists(slot.iconKey) && visual.icon) {
-        visual.icon.setTexture(slot.iconKey);
-        visual.icon.setVisible(true);
-      } else if (visual.icon) {
-        visual.icon.setVisible(false);
+      if (visual.icon) {
+        const hasAtlas = slot.iconTexture && this.textures.exists(slot.iconTexture);
+        const atlasTexture = hasAtlas ? this.textures.get(slot.iconTexture) : null;
+        const hasFrame = hasAtlas && atlasTexture && typeof atlasTexture.has === "function"
+          ? slot.iconFrame
+            ? atlasTexture.has(slot.iconFrame)
+            : true
+          : false;
+        if (hasFrame) {
+          if (slot.iconFrame) {
+            visual.icon.setTexture(slot.iconTexture, slot.iconFrame);
+          } else {
+            visual.icon.setTexture(slot.iconTexture);
+          }
+          visual.icon.setVisible(true);
+        } else if (slot.iconKey && this.textures.exists(slot.iconKey)) {
+          visual.icon.setTexture(slot.iconKey);
+          visual.icon.setVisible(true);
+        } else {
+          visual.icon.setVisible(false);
+        }
       }
       visual.quantity.setText(slot.quantity > 1 ? `x${slot.quantity}` : "");
 
@@ -1128,16 +1140,37 @@ export default class UIScene extends Phaser.Scene {
     }
 
     const definition = item.id ? ITEM_CATALOG[item.id] : null;
-    const iconKey = item.iconKey || definition?.iconKey || null;
-    const hasIcon = Boolean(iconKey && this.textures.exists(iconKey));
-    if (hasIcon) {
-      this.inventoryDetailIcon.setTexture(iconKey);
+    const baseIcon = resolveItemIcon(definition);
+    const iconTexture = item.iconTexture || baseIcon.texture;
+    const iconFrame = item.iconFrame || baseIcon.frame;
+    const fallbackKey = item.iconKey || baseIcon.fallback || null;
+
+    let iconVisible = false;
+    if (iconTexture && this.textures.exists(iconTexture)) {
+      const texture = this.textures.get(iconTexture);
+      const frameValid = !iconFrame || (texture && typeof texture.has === "function" ? texture.has(iconFrame) : true);
+      if (frameValid) {
+        if (iconFrame) {
+          this.inventoryDetailIcon.setTexture(iconTexture, iconFrame);
+        } else {
+          this.inventoryDetailIcon.setTexture(iconTexture);
+        }
+        this.inventoryDetailIcon.setVisible(true);
+        iconVisible = true;
+      }
+    }
+
+    if (!iconVisible && fallbackKey && this.textures.exists(fallbackKey)) {
+      this.inventoryDetailIcon.setTexture(fallbackKey);
       this.inventoryDetailIcon.setVisible(true);
-    } else {
+      iconVisible = true;
+    }
+
+    if (!iconVisible) {
       this.inventoryDetailIcon.setVisible(false);
     }
 
-    if (hasIcon) {
+    if (iconVisible) {
       const typeKey = (item.type || definition?.type || "").toLowerCase();
       const fillMap = {
         consumable: 0x1d2b3c,
@@ -1363,7 +1396,6 @@ export default class UIScene extends Phaser.Scene {
 
   shutdown() {
     debugHudToggle.off("changed", this.handleDebugHudChange, this);
-
     if (this.gameScene && this.gameScene.events) {
       this.gameScene.events.off("ui-state", this.handleStateUpdate, this);
       this.gameScene.events.off("ui-panel", this.handlePanelToggle, this);

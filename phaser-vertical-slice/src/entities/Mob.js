@@ -23,7 +23,7 @@ const MOB_CONFIG = {
 
 export default class Mob extends Phaser.Physics.Matter.Sprite {
   constructor(scene, x, y) {
-    super(scene.matter.world, x, y, ASSET_KEYS.ATLAS.CORE, "mob_idle");
+    super(scene.matter.world, x, y, ASSET_KEYS.ATLAS.CORE, "mob/idle_00");
 
     this.scene = scene;
     this.originX = x;

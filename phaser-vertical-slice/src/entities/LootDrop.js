@@ -1,5 +1,5 @@
 import Phaser from "../phaser.js";
-import { ensureItemIconTexture, getItemDefinition } from "../data/ItemCatalog.js";
+import { ensureItemIconTexture, getItemDefinition, resolveItemIcon } from "../data/ItemCatalog.js";
 
 const { Bodies } = Phaser.Physics.Matter.Matter;
 
@@ -63,8 +63,21 @@ export default class LootDrop extends Phaser.Physics.Matter.Sprite {
   spawn(itemId, quantity, x, y) {
     const definition = getItemDefinition(itemId);
     if (definition) {
-      ensureItemIconTexture(this.scene, definition);
-      if (definition.iconKey && this.scene.textures.exists(definition.iconKey)) {
+      const iconInfo = ensureItemIconTexture(this.scene, definition);
+      const baseIcon = resolveItemIcon(definition);
+      if (iconInfo?.texture && this.scene.textures.exists(iconInfo.texture)) {
+        if (iconInfo.frame) {
+          this.setTexture(iconInfo.texture, iconInfo.frame);
+        } else {
+          this.setTexture(iconInfo.texture);
+        }
+      } else if (baseIcon.texture && this.scene.textures.exists(baseIcon.texture)) {
+        if (baseIcon.frame) {
+          this.setTexture(baseIcon.texture, baseIcon.frame);
+        } else {
+          this.setTexture(baseIcon.texture);
+        }
+      } else if (definition.iconKey && this.scene.textures.exists(definition.iconKey)) {
         this.setTexture(definition.iconKey);
       }
     }

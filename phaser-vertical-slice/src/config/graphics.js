@@ -9,8 +9,7 @@ const DEFAULT_DEBUG_TOGGLE_KEY = "F4";
 export const QUALITY_PRESETS = Object.freeze({
   [QUALITY_LEVELS.LOW]: {
     zoom: 1,
-
-    enableParallax: false,
+    enableParallax: true,
     parallaxLayers: 3,
     enableEnvAnim: false
   },
@@ -37,7 +36,6 @@ export const GFX = {
   enableEnvAnim: QUALITY_PRESETS[QUALITY_LEVELS.MID].enableEnvAnim,
   showDebugHUD: false,
   debugToggleKey: DEFAULT_DEBUG_TOGGLE_KEY
-
 };
 
 const OPTION_TO_PRESET = Object.freeze({
@@ -91,7 +89,6 @@ export function isDebugHudVisible() {
   return Boolean(GFX.showDebugHUD);
 }
 
-
 export function getDebugToggleKey() {
   const key = typeof GFX.debugToggleKey === "string" ? GFX.debugToggleKey.trim() : "";
   if (!key) {
@@ -99,4 +96,3 @@ export function getDebugToggleKey() {
   }
   return key.toUpperCase();
 }
-
