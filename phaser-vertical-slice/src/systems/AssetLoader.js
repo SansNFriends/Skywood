@@ -1,3 +1,7 @@
+
+// Purpose: Manage atlas/audio loading with runtime fallbacks when generated assets are absent.
+// Why: The repository ignores binaries, so scenes rely on synthesized textures if fetch-assets has not run.
+
 // Assets: CC0 (Kenney.nl / OpenGameArt CC0)
 import Phaser from "../phaser.js";
 
@@ -50,37 +54,65 @@ const ATLASES = [
   }
 ];
 
+
+const padFrameIndex = (value) => value.toString().padStart(2, "0");
+
 const RUNTIME_FALLBACKS = {
   [ASSET_KEYS.ATLAS.CORE]: {
     frameSize: 64,
     frames: [
       ...Array.from({ length: 8 }, (_, index) => ({
-        name: `player/idle_0${index}`,
+
+        name: `player/idle_${padFrameIndex(index)}`,
         color: 0x5c7cfa
       })),
-      ...Array.from({ length: 8 }, (_, index) => ({
-        name: `player/run_0${index}`,
+      ...Array.from({ length: 12 }, (_, index) => ({
+        name: `player/run_${padFrameIndex(index)}`,
         color: 0x4f9ef6
       })),
       ...Array.from({ length: 4 }, (_, index) => ({
-        name: `player/jump_0${index}`,
+        name: `player/jump_${padFrameIndex(index)}`,
         color: 0x8fd0ff
       })),
       ...Array.from({ length: 4 }, (_, index) => ({
-        name: `player/fall_0${index}`,
+        name: `player/fall_${padFrameIndex(index)}`,
         color: 0x7cb6ff
       })),
+      { name: "mob/idle_00", color: 0xd45d79 },
       { name: "projectile/basic", color: 0xffc857 },
-      { name: "mob/idle_00", color: 0xd45d79 }
+      ...Array.from({ length: 6 }, (_, index) => ({
+        name: `fx/dust_${padFrameIndex(index)}`,
+        color: 0xc9f2ff
+      })),
+      ...Array.from({ length: 8 }, (_, index) => ({
+        name: `fx/hit_${padFrameIndex(index)}`,
+        color: 0xff728d
+      })),
+      ...Array.from({ length: 6 }, (_, index) => ({
+        name: `fx/trail_${padFrameIndex(index)}`,
+        color: 0x9ac4ff
+      })),
+      { name: "ui/icons/skyroot_tonic", color: 0x65ebb8 },
+      { name: "ui/icons/azure_focus", color: 0x2c6cff },
+      { name: "ui/icons/ember_shard", color: 0xff6f4e },
+      { name: "ui/icons/wingburst_scroll", color: 0xf4e1ba },
+      { name: "ui/icons/placeholder", color: 0x4d5a7d }
+
     ]
   },
   [ASSET_KEYS.ATLAS.WORLD]: {
     frameSize: 48,
     frames: [
-      { name: "tiles/ground_00", color: 0x8c6239 },
-      { name: "tiles/ground_edge", color: 0xb57f50 },
-      { name: "tiles/platform", color: 0x5f8a5e },
-      { name: "decor/shrub_00", color: 0x2d6a4f }
+
+      ...Array.from({ length: 32 }, (_, index) => ({
+        name: `tiles/ground_${padFrameIndex(index)}`,
+        color: (0x8c6239 + index * 137) & 0xffffff
+      })),
+      ...Array.from({ length: 16 }, (_, index) => ({
+        name: `decor/decor_${padFrameIndex(index)}`,
+        color: (0x2d6a4f + index * 73) & 0xffffff
+      }))
+
     ]
   }
 };
@@ -108,7 +140,6 @@ const IMAGES = [
   { key: ASSET_KEYS.IMAGE.PARALLAX_FOREGROUND, url: `${ASSET_BASE_PATH}/assets/backgrounds/layer_foreground.png` },
   { key: ASSET_KEYS.IMAGE.TILESET_SKYWOOD, url: `${ASSET_BASE_PATH}/assets/tilemaps/skywood_tileset.png?v=13` }
 ];
-
 
 const DEFAULT_TILESET_META = Object.freeze({
   tileWidth: 48,
@@ -489,9 +520,7 @@ export default class AssetLoader {
     loader.once(Phaser.Loader.Events.COMPLETE, () => {
       ensureAtlases(scene);
       ensureTilesetTexture(scene);
-    });
-    loader.once(Phaser.Loader.Events.COMPLETE, () => {
-      ensureAtlases(scene);
+
     });
   }
 

@@ -1,6 +1,12 @@
 # 패치 노트
 
 
+## v0.7.4 — 픽셀 프로필 자산 파이프라인
+- `scripts/fetch-assets.mjs`가 Kenney CC0 ZIP을 직접 다운로드해 48x48 스냅 규격으로 타일/데코를 재배치하고, 플레이어·FX·UI 프레임을 2장(core/world) 아틀라스로 묶도록 개편했습니다.
+- `--profile` 또는 `ASSET_PROFILE`로 `pixel`/`minimal`을 선택할 수 있으며, Content-Type 검증 실패나 네트워크 오류 시에는 기존 절차적 폴백을 자동으로 사용합니다.
+- AssetLoader와 Player 엔티티가 새 아틀라스 네이밍(런 12프레임, FX/아이콘 프레임)을 참조하고, 폴백 합성도 동일한 키를 생성하도록 정비했습니다.
+
+
 ## v0.7.3 — 자산 폴백 점검
 - BootScene에서 `AssetLoader.detectAvailability()`를 호출해 atlas/배경/오디오 파일 존재 여부를 선검사한 뒤, 누락된 항목은 Preload 로더 큐에 올리지 않고 런타임 합성 텍스처로 즉시 대체하도록 했습니다. 덕분에 브라우저 콘솔에 404 경고가 더 이상 출력되지 않습니다.
 - 타일셋 PNG가 없을 때도 `tileset.skywood` 키에 캔버스 기반 플레이스홀더를 생성해 Tiled 맵 로딩이 실패하지 않도록 했습니다. 실제 자산을 내려받아 스크립트를 재실행하면 자동으로 교체됩니다.

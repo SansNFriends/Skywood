@@ -1,4 +1,6 @@
-﻿import Phaser from "../phaser.js";
+// Purpose: Phaser Matter player entity with movement, combat, and atlas-driven animations.
+// Why: Gameplay logic must reference regenerated atlas frames while keeping input/save behaviour unchanged.
+import Phaser from "../phaser.js";
 import { ASSET_KEYS } from "../systems/AssetLoader.js";
 import { INPUT_KEYS } from "../systems/InputManager.js";
 import CombatStats from "./CombatStats.js";
@@ -31,7 +33,8 @@ const IDLE_ANIM_INTERVAL = 180;
 const HITSTUN_MS = 220;
 
 const PLAYER_IDLE_FRAMES = Array.from({ length: 8 }, (_, index) => `player/idle_0${index}`);
-const PLAYER_RUN_FRAMES = Array.from({ length: 8 }, (_, index) => `player/run_0${index}`);
+const PLAYER_RUN_FRAMES = Array.from({ length: 12 }, (_, index) => `player/run_${index.toString().padStart(2, "0")}`);
+
 const PLAYER_JUMP_FRAMES = Array.from({ length: 4 }, (_, index) => `player/jump_0${index}`);
 const PLAYER_FALL_FRAMES = Array.from({ length: 4 }, (_, index) => `player/fall_0${index}`);
 

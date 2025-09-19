@@ -6,5 +6,9 @@
   "scripts": {
     "assets:fetch": "node scripts/fetch-assets.mjs",
     "assets:rebuild": "node scripts/fetch-assets.mjs --rebuild"
+  },
+  "dependencies": {
+    "pngjs": "^7.0.0"
+
   }
 }

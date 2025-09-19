@@ -1,6 +1,11 @@
+# ⚠️ 이 레포는 바이너리 자산을 커밋하지 않습니다.
+# Codespaces/로컬에서 `npm ci && npm run assets:fetch`(또는 `-- --profile minimal`) 후 `npm run dev`로 실행하세요.
+# 문제가 있으면 폴백(네모 캐릭터/격자 배경)으로 자동 실행됩니다.
+
 # Skywood Legends Slice
 
-> ⚠️ 저장소에는 바이너리 자산이 포함되어 있지 않습니다. 클론 후 `npm install`을 실행하고 `npm run assets:fetch`(또는 전부 재생성이 필요하면 `npm run assets:rebuild`)로 로컬 아틀라스와 폴백 이미지를 만들어 주세요.
+
+> ⚠️ 저장소에는 바이너리 자산이 포함되어 있지 않습니다. 클론 후 `npm ci`를 실행하고 `npm run assets:fetch`(또는 전부 재생성이 필요하면 `npm run assets:rebuild`)로 로컬 아틀라스와 폴백 이미지를 만들어 주세요.
 > 스크립트를 실행하지 않은 상태에서는 게임이 자동으로 캔버스 기반 임시 아틀라스/타일셋으로 구동되어 파란 격자형 배경과 심플한 캐릭터 박스가 표시되는데, 이는 오류가 아니라 런타임 폴백이 정상적으로 동작하는 모습입니다.
 
 
@@ -35,7 +40,6 @@ Phaser는 `public/vendor/phaser.esm.js` 번들을 우선 로드하고 실패 시
 - 실제 아트가 없는 상태에서도 AssetLoader가 런타임 캔버스에서 `player/idle_*`, `mob/idle_00`, `projectile/basic` 등 핵심 프레임을 합성해 기본 플레이가 가능합니다. 네트워크 차단 시에도 플레이스홀더 비주얼로 안전하게 실행됩니다.
 - 타일셋 PNG(`public/assets/tilemaps/skywood_tileset.png`)도 파이프라인에서 동기화하므로 Tiled/LDtk 매핑을 수정할 필요 없이 최신 텍스처를 사용할 수 있습니다.
 - BootScene은 페이지 진입 시점에 자산 존재 여부를 `HEAD` 요청으로 검사하고, 누락된 항목은 Preload 단계에서 로더 큐에 올리지 않습니다. 대신 AssetLoader가 즉시 캔버스 기반 아틀라스/타일셋을 등록하므로 더 이상 404 로그가 쌓이지 않고, 자산을 받아 온 뒤 스크립트를 돌리면 자동으로 실제 아트를 사용합니다.
-
 
 ## 핵심 시스템
 
