@@ -34,6 +34,7 @@ const HITSTUN_MS = 220;
 
 const PLAYER_IDLE_FRAMES = Array.from({ length: 8 }, (_, index) => `player/idle_0${index}`);
 const PLAYER_RUN_FRAMES = Array.from({ length: 12 }, (_, index) => `player/run_${index.toString().padStart(2, "0")}`);
+
 const PLAYER_JUMP_FRAMES = Array.from({ length: 4 }, (_, index) => `player/jump_0${index}`);
 const PLAYER_FALL_FRAMES = Array.from({ length: 4 }, (_, index) => `player/fall_0${index}`);
 

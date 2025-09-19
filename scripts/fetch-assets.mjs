@@ -1,6 +1,8 @@
 #!/usr/bin/env node
+
 // Purpose: Regenerate pixel-profile atlases from Kenney CC0 packs without committing binaries.
 // Why: Codex forbids binary diffs, so we download CC0 ZIPs per profile and rebuild atlases locally while leaving runtime fallbacks intact.
+
 // Assets: CC0 (Kenney.nl / OpenGameArt CC0)
 
 import { promises as fs } from "node:fs";
@@ -11,6 +13,7 @@ import { parseArgs } from "node:util";
 import zlib from "node:zlib";
 import { PNG } from "pngjs";
 
+
 const __filename = fileURLToPath(new URL(import.meta.url));
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, "..");
@@ -20,7 +23,6 @@ const RAW_DIR = path.join(ASSET_ROOT, "raw");
 const ATLAS_DIR = path.join(ASSET_ROOT, "atlas");
 const FALLBACK_DIR = path.join(ASSET_ROOT, "fallback");
 const TILEMAP_DIR = path.join(ASSET_ROOT, "tilemaps");
-
 const DEFAULT_PROFILE = "pixel";
 const PROFILE_ENV = process.env.ASSET_PROFILE;
 
@@ -60,6 +62,7 @@ const PROFILES = {
     }
   ]
 };
+
 
 function log(message, ...args) {
   const ts = new Date().toISOString().replace(/T/, " ").replace(/\..+/, "");
@@ -135,6 +138,7 @@ async function downloadSource(source, rebuild = false) {
     if (!/zip/i.test(contentType) && !source.url.toLowerCase().endsWith(".zip")) {
       throw new Error(`Unexpected content-type '${contentType || "<none>"}'`);
     }
+
     const buffer = Buffer.from(await response.arrayBuffer());
     await fs.writeFile(target, buffer);
     log(`Saved ${source.fileName} (${buffer.length} bytes)`);
@@ -177,8 +181,10 @@ async function extractSources(results, rebuild = false) {
     if (!result.ok) {
       continue;
     }
+
     const baseName = path.basename(result.path, ".zip");
     const subdir = path.join(extractRoot, baseName);
+
     if (!rebuild && (await fileExists(subdir))) {
       continue;
     }
@@ -188,6 +194,7 @@ async function extractSources(results, rebuild = false) {
     }
   }
 }
+
 
 async function walkDir(dirPath, relativePrefix = "") {
   const entries = await fs.readdir(dirPath, { withFileTypes: true });
@@ -311,12 +318,15 @@ function toColorComponents(color, alpha = 1) {
       b: color.b ?? 0,
       a: clamp(color.a ?? Math.round(alpha * 255), 0, 255)
     };
+
   }
   const value = Number(color) >>> 0;
   const r = (value >> 16) & 0xff;
   const g = (value >> 8) & 0xff;
   const b = value & 0xff;
+
   const a = clamp(Math.round(alpha * 255), 0, 255);
+
   return { r, g, b, a };
 }
 
@@ -477,9 +487,11 @@ class CanvasView {
   }
 
   strokeCircle(cx, cy, radius, color, thickness = 1, alpha = 1) {
+
     const outer2 = radius * radius;
     const innerRadius = Math.max(0, radius - thickness);
     const inner2 = innerRadius * innerRadius;
+
     const minX = Math.max(0, Math.floor(cx - radius));
     const maxX = Math.min(this.width - 1, Math.ceil(cx + radius));
     const minY = Math.max(0, Math.floor(cy - radius));
@@ -490,6 +502,7 @@ class CanvasView {
         const dy = y - cy;
         const dist2 = dx * dx + dy * dy;
         if (dist2 <= outer2 && dist2 >= inner2) {
+
           this.setPixel(x, y, color, alpha);
         }
       }
@@ -587,6 +600,7 @@ class AtlasBuilder {
     return { buffer, json };
   }
 }
+
 
 function padFrame(index) {
   return index.toString().padStart(2, "0");
@@ -793,6 +807,7 @@ function drawPlayerFrame(view, variant) {
   view.fillCircle(32, 16, 10, faceColor, 1);
   view.fillCircle(32, 12, 12, hairColor, 1);
 
+
   const sway = Math.sin((variant / 12) * Math.PI * 2) * 2;
   view.fillRect(18 + sway, 42, 12, 18, bootColor, 1);
   view.fillRect(34 + sway, 42, 12, 18, bootColor, 1);
@@ -807,6 +822,7 @@ function drawPlayerFrame(view, variant) {
 
 function drawPlayerRunFrame(view, variant) {
   const phase = variant / 12;
+
   const legOffset = Math.sin(phase * Math.PI * 2) * 6;
   const armOffset = Math.cos(phase * Math.PI * 2) * 6;
 
@@ -819,21 +835,26 @@ function drawPlayerRunFrame(view, variant) {
   view.fillRect(38 - armOffset, 24, 10, 6, 0xffe0c0, 1);
 }
 
+
 function drawPlayerJumpFrame(view) {
   drawPlayerFrame(view, 0);
+
   view.fillRect(22, 38, 10, 16, 0x22336f, 1);
   view.fillRect(34, 38, 10, 16, 0x22336f, 1);
   view.fillRect(20, 24, 8, 8, 0xffe3c4, 1);
   view.fillRect(36, 24, 8, 8, 0xffe3c4, 1);
 }
 
+
 function drawPlayerFallFrame(view) {
   drawPlayerFrame(view, 0);
+
   view.fillRect(20, 40, 12, 18, 0x1d2744, 1);
   view.fillRect(36, 40, 12, 18, 0x1d2744, 1);
   view.fillRect(24, 24, 6, 10, 0xffcfa0, 1);
   view.fillRect(34, 24, 6, 10, 0xffcfa0, 1);
 }
+
 
 function drawMobIdle(view, variant) {
   view.fill(0x000000, 0);
@@ -859,12 +880,15 @@ function drawProjectile(view) {
 function drawDustFx(view, variant) {
   view.fill(0x000000, 0);
   const radius = 8 + variant;
+
   view.fillCircle(32, 32, radius, 0xffffff, 0.2 + variant * 0.06);
   view.strokeCircle(32, 32, radius, 0xffffff, 2, 0.5);
+
 }
 
 function drawHitFx(view, variant) {
   view.fill(0x000000, 0);
+
   const count = 6 + variant;
   for (let i = 0; i < count; i += 1) {
     const angle = (i / count) * Math.PI * 2;
@@ -933,6 +957,7 @@ function drawWorldGround(view, palette, seed) {
     view.fillRect(0, y, view.width, 4, color, 1);
   }
   view.fillRect(0, 0, view.width, 8, palette.top, 1);
+
 }
 
 function drawWorldDecor(view, palette) {
@@ -963,12 +988,15 @@ function buildPlaceholderCoreAtlas() {
   }
   for (let i = 0; i < 8; i += 1) {
     builder.addFrame(`fx/hit_${padFrame(i)}`, 48, 48, (view) => drawHitFx(view, i));
+
   }
 
   builder.addFrame("ui/icons/skyroot_tonic", 48, 48, (view) =>
     drawIconPotion(view, {
       glass: 0xd4fff2,
+
       glassShadow: 0x7ad1b2,
+
       liquid: 0x65ebb8,
       stopper: 0x2f7d61,
       outline: 0x14302a
@@ -992,9 +1020,11 @@ function buildPlaceholderCoreAtlas() {
     drawIconScroll(view, {
       parchment: 0xf4e1ba,
       trim: 0xc69c56,
+
       outline: 0x3a2a12
     })
   );
+
   builder.addFrame("ui/icons/placeholder", 48, 48, (view) => {
     view.fill(0x1b2235, 0.92);
     view.strokeRect(4, 4, 40, 40, 0x4d5a7d, 2, 0.85);
@@ -1003,10 +1033,12 @@ function buildPlaceholderCoreAtlas() {
   return builder.toAtlas("core.png");
 }
 
+
 function buildPlaceholderWorldAtlas(tileInfo) {
   const tileSize = Math.max(8, Math.round(tileInfo.width || 48));
   const tileCount = Math.max(32, Math.round(tileInfo.tilecount || 48));
   const columns = Math.max(8, Math.round(tileInfo.columns || Math.ceil(Math.sqrt(tileCount))));
+
   const rows = Math.ceil(tileCount / columns);
   const width = columns * tileSize;
   const height = rows * tileSize;
@@ -1036,9 +1068,11 @@ function buildPlaceholderWorldAtlas(tileInfo) {
         outline: 0x1a2235
       });
     }
+
     const frameName = index < tileCount * 0.75
       ? `tiles/ground_${padFrame(index)}`
       : `decor/decor_${padFrame(index - Math.floor(tileCount * 0.75))}`;
+
     frames[frameName] = {
       frame: { x: originX, y: originY, w: tileSize, h: tileSize },
       rotated: false,
@@ -1066,8 +1100,10 @@ function buildPlaceholderWorldAtlas(tileInfo) {
 }
 
 async function writeAtlasOutputs(name, atlas, options = {}) {
+
   await ensureDir(ATLAS_DIR);
   await ensureDir(FALLBACK_DIR);
+
   const atlasPath = path.join(ATLAS_DIR, `${name}.png`);
   const jsonPath = path.join(ATLAS_DIR, `${name}.json`);
   await fs.writeFile(atlasPath, atlas.buffer);
@@ -1093,6 +1129,7 @@ async function detectTileInfo() {
     const parsed = JSON.parse(raw);
     const tileset = Array.isArray(parsed.tilesets) ? parsed.tilesets[0] : null;
     return {
+
       width: tileset?.tilewidth ?? parsed.tilewidth ?? 48,
       height: tileset?.tileheight ?? parsed.tileheight ?? 48,
       columns: tileset?.columns ?? 8,
@@ -1101,12 +1138,14 @@ async function detectTileInfo() {
   } catch (err) {
     log(`Tile metadata fallback: ${err.message}`);
     return { width: 48, height: 48, columns: 8, tilecount: 48 };
+
   }
 }
 
 async function main() {
   const { values } = parseArgs({
     options: {
+
       rebuild: { type: "boolean", default: false },
       profile: { type: "string" }
     }
@@ -1115,17 +1154,19 @@ async function main() {
   const profileName = resolveProfile(values.profile);
   log(`Starting asset pipeline (profile=${profileName}, rebuild=${values.rebuild ? "true" : "false"})`);
 
+
   await ensureDir(RAW_DIR);
   await ensureDir(ATLAS_DIR);
   await ensureDir(FALLBACK_DIR);
-
   const sources = prepareSources(profileName);
   const downloadResults = [];
   for (const source of sources) {
+
     const result = await downloadSource(source, values.rebuild);
     downloadResults.push(result);
   }
   await extractSources(downloadResults, values.rebuild);
+
 
   const collectedFiles = await collectProfileFiles(sources);
   log(`Collected ${collectedFiles.length} PNG candidates from CC0 packs`);
@@ -1156,9 +1197,11 @@ async function main() {
     worldAtlas = buildPlaceholderWorldAtlas(tileInfo);
   }
 
+
   await writeAtlasOutputs("core", coreAtlas);
   const tileSheetPath = path.join(TILEMAP_DIR, "skywood_tileset.png");
   await writeAtlasOutputs("world", worldAtlas, { tileSheetPath });
+
 
   const drawCalls = 2;
   if (summary) {
@@ -1166,6 +1209,7 @@ async function main() {
   } else {
     log(`[summary] profile=${profileName} procedural fallback atlases drawCalls≈${drawCalls}`);
   }
+
 }
 
 main().catch((err) => {

@@ -570,6 +570,7 @@ export default class BackgroundSystem {
           go.y = layer.baseY;
         }
         return;
+
       }
 
       if (def.animate?.scrollX) {

@@ -1,5 +1,7 @@
+
 // Purpose: Manage atlas/audio loading with runtime fallbacks when generated assets are absent.
 // Why: The repository ignores binaries, so scenes rely on synthesized textures if fetch-assets has not run.
+
 // Assets: CC0 (Kenney.nl / OpenGameArt CC0)
 import Phaser from "../phaser.js";
 
@@ -52,6 +54,7 @@ const ATLASES = [
   }
 ];
 
+
 const padFrameIndex = (value) => value.toString().padStart(2, "0");
 
 const RUNTIME_FALLBACKS = {
@@ -59,6 +62,7 @@ const RUNTIME_FALLBACKS = {
     frameSize: 64,
     frames: [
       ...Array.from({ length: 8 }, (_, index) => ({
+
         name: `player/idle_${padFrameIndex(index)}`,
         color: 0x5c7cfa
       })),
@@ -93,11 +97,13 @@ const RUNTIME_FALLBACKS = {
       { name: "ui/icons/ember_shard", color: 0xff6f4e },
       { name: "ui/icons/wingburst_scroll", color: 0xf4e1ba },
       { name: "ui/icons/placeholder", color: 0x4d5a7d }
+
     ]
   },
   [ASSET_KEYS.ATLAS.WORLD]: {
     frameSize: 48,
     frames: [
+
       ...Array.from({ length: 32 }, (_, index) => ({
         name: `tiles/ground_${padFrameIndex(index)}`,
         color: (0x8c6239 + index * 137) & 0xffffff
@@ -106,6 +112,7 @@ const RUNTIME_FALLBACKS = {
         name: `decor/decor_${padFrameIndex(index)}`,
         color: (0x2d6a4f + index * 73) & 0xffffff
       }))
+
     ]
   }
 };
@@ -444,6 +451,7 @@ function injectStylesheet(url) {
 }
 
 export default class AssetLoader {
+
   static rememberAvailability(availability) {
     availabilityCache = cloneAvailability(availability);
   }
@@ -482,6 +490,7 @@ export default class AssetLoader {
     const imageAvailability = getAvailabilitySection(availability, "images");
     const audioAvailability = getAvailabilitySection(availability, "audio");
 
+
     ATLASES.forEach((atlas) => {
       if (shouldLoad(atlasAvailability, atlas.key)) {
         loader.atlas(atlas.key, atlas.textureURL, atlas.dataURL);
@@ -511,6 +520,7 @@ export default class AssetLoader {
     loader.once(Phaser.Loader.Events.COMPLETE, () => {
       ensureAtlases(scene);
       ensureTilesetTexture(scene);
+
     });
   }
 
