@@ -1,0 +1,10 @@
+{
+  "name": "skywood",
+  "version": "0.5.2",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "assets:fetch": "node scripts/fetch-assets.mjs",
+    "assets:rebuild": "node scripts/fetch-assets.mjs --rebuild"
+  }
+}

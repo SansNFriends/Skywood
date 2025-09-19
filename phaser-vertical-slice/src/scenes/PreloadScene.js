@@ -12,9 +12,14 @@ export default class PreloadScene extends Phaser.Scene {
     this.progressBar = null;
     this.statusText = null;
     this.percentText = null;
+    this.assetAvailability = null;
 
     this.updateProgress = this.updateProgress.bind(this);
     this.handleLoadComplete = this.handleLoadComplete.bind(this);
+  }
+
+  init(data) {
+    this.assetAvailability = data?.availability || null;
   }
 
   preload() {
@@ -22,7 +27,7 @@ export default class PreloadScene extends Phaser.Scene {
 
     this.createUi();
     AssetLoader.attachDiagnostics(this);
-    AssetLoader.registerCore(this.load);
+    AssetLoader.registerCore(this.load, this.assetAvailability);
 
     this.load.on(Phaser.Loader.Events.PROGRESS, this.updateProgress);
     this.load.once(Phaser.Loader.Events.COMPLETE, this.handleLoadComplete);

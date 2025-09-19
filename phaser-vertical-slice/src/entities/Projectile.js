@@ -3,7 +3,7 @@ import { ASSET_KEYS } from "../systems/AssetLoader.js";
 
 export default class Projectile extends Phaser.Physics.Matter.Sprite {
   constructor(scene, x, y) {
-    super(scene.matter.world, x, y, ASSET_KEYS.ATLAS.CORE, "projectile_basic");
+    super(scene.matter.world, x, y, ASSET_KEYS.ATLAS.CORE, "projectile/basic");
     this.scene = scene;
     this.setDepth(30);
     this.lifespan = 800;
