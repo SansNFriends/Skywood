@@ -1,5 +1,6 @@
 # 패치 노트
 
+
 ## v0.7.2 — 패럴랙스 렌더링 안정화
 - `BackgroundSystem.update()` 루프에서 `continue` 키워드 사용으로 인해 브라우저가 `Illegal continue statement` 예외를 던지던 문제를 `return` 분기로 교체해 씬이 더 이상 크래시하지 않습니다.
 
